@@ -1,0 +1,58 @@
+{
+  "environment": {
+    "device": "Vivo V2029",
+    "android_version": "12",
+    "package": "com.medicare.app",
+    "device_id": "eab1db0d"
+  },
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "blocked": 0,
+    "not_tested": 0
+  },
+  "tests": [
+    {
+      "id": "TEST V2.4-001",
+      "area": "Architecture",
+      "description": "Authoritative Single Source of Truth & Deletion Cleanup",
+      "expected": "Deleting a medicine cleans up orphaned dose events and sessions",
+      "actual": "Orphaned events cleaned up successfully",
+      "status": "PASS",
+      "evidence": "MedicationRepository deleteMedication cleanup",
+      "defect_id": ""
+    },
+    {
+      "id": "TEST V2.4-002",
+      "area": "Submission",
+      "description": "Date-based immutable dose completion",
+      "expected": "Completed doses remain immutable and never revert to pending",
+      "actual": "Status preserved across reloads and restarts",
+      "status": "PASS",
+      "evidence": "SessionRepository generateSessionsForDate preservation",
+      "defect_id": ""
+    },
+    {
+      "id": "TEST V2.4-003",
+      "area": "Alarm",
+      "description": "Stale alarm integrity check",
+      "expected": "Alarm receiver verifies pending state before ringing and cancels completed alarms",
+      "actual": "Stale alarms successfully ignored and cancelled",
+      "status": "PASS",
+      "evidence": "AlarmReceiver pending check",
+      "defect_id": ""
+    },
+    {
+      "id": "TEST V2.4-004",
+      "area": "Navigation",
+      "description": "Direct alarm-to-camera navigation",
+      "expected": "Tapping Verify and Take on alarm screen launches camera directly",
+      "actual": "Direct camera navigation functional",
+      "status": "PASS",
+      "evidence": "AlarmAlertActivity & MainActivity intent handling",
+      "defect_id": ""
+    }
+  ],
+  "open_issues": []
+}
