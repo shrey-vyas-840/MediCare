@@ -7,7 +7,6 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.provider.ContactsContract
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -19,8 +18,6 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
@@ -30,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import com.medicare.app.ui.components.MediCareBrandFooter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -156,15 +154,6 @@ fun SettingsScreen(
                         Switch(checked = notificationsEnabled, onCheckedChange = { viewModel.setNotificationsEnabled(it) })
                     }
                 }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Image(
-                    painter = painterResource(com.medicare.app.R.drawable.medicare_logo),
-                    contentDescription = "MediCare — Never Miss Your Medicine",
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1.5f).padding(8.dp),
-                    contentScale = ContentScale.Fit
-                )
             }
 
             Text("Emergency contacts", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
@@ -412,7 +401,7 @@ fun SettingsScreen(
                 Spacer(Modifier.width(8.dp))
                 Text("Clear All MediCare Data")
             }
-            Text("© 2026 MediCare · Created & Managed by Shrey Vyas", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            MediCareBrandFooter()
         }
     }
 

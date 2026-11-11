@@ -90,8 +90,8 @@ class MainActivity : ComponentActivity() {
                                 NavigationBarItem(
                                     selected = currentScreen is Screen.Inventory,
                                     onClick = { currentScreen = Screen.Inventory },
-                                    icon = { Icon(Icons.Rounded.Inventory2, contentDescription = "Tablets Left") },
-                                    label = { Text("Tablets Left") }
+                                    icon = { Icon(Icons.Rounded.Inventory2, contentDescription = "Inventory") },
+                                    label = { Text("Inventory") }
                                 )
                                 NavigationBarItem(
                                     selected = currentScreen is Screen.History,

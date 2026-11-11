@@ -29,7 +29,7 @@ fun InventoryDashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Tablets Left Dashboard") },
+                title = { Text("Inventory") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
@@ -108,7 +108,7 @@ fun InventoryDashboardScreen(
         val med = reconcilingMed!!
         AlertDialog(
             onDismissRequest = { reconcilingMed = null },
-            title = { Text("Set Tablets Left: ${med.name}") },
+            title = { Text("Update inventory: ${med.name}") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Enter the actual number of tablets left in the strip right now:")

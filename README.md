@@ -13,6 +13,8 @@ MediCare is an offline-first Android medication reminder and dose tracking app b
 - Locally saved patient name and up to two emergency contacts selected from the system contacts picker. Automatic emergency SMS is opt-in; Android permission/device restrictions produce a recorded manual-composer fallback.
 - User-confirmed full data reset. Gallery photo removal is a separate choice limited to verifiably MediCare-owned items.
 - Light and dark themes, accessibility-aware Compose controls, the supplied MediCare brand logo, and settings for alarm and data preferences.
+- Square adaptive launcher icon derived from the supplied MediCare mark; the complete logo and creator credit sit at the bottom of Home and Settings.
+- Bottom navigation uses the compact “Inventory” label.
 
 ## Architecture
 
@@ -37,7 +39,7 @@ Install or update-install to a connected device:
 .\gradlew.bat installDebug
 ```
 
-The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. Keep machine-specific SDK paths in the ignored `local.properties`; do not commit signing keys, private contacts, patient data, or Gallery photos.
+The current app version is 1.1 (version code 2). See [CHANGELOG.md](CHANGELOG.md) for the version history. The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. Keep machine-specific SDK paths in the ignored `local.properties`; do not commit signing keys, private contacts, patient data, or Gallery photos.
 
 ## Tests
 

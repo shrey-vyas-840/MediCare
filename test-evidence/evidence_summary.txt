@@ -1,11 +1,12 @@
 MediCare next-release evidence (Vivo V2029, Android 12 / API 31)
 ================================================================
 
-- medicare-final-screen.png: final installed Home screen, showing the complete supplied logo and existing schedule.
-- medicare-settings-screen.png and medicare-settings-lower*.png: final Settings screens, including patient-name Save, logo, two contact slots, contact Save, permission status, alarm controls, and cleanup action. No contact was selected.
+- medicare-final-screen.png: earlier sanitized Home capture; it predates version 1.1 footer placement.
+- medicare-settings-footer.png: version 1.1 Settings footer capture, with the full logo and creator line below the settings controls.
+- medicare-settings-screen.png and medicare-settings-lower*.png: earlier Settings captures showing patient-name Save, contact slots, contact Save, permission status, alarm controls, and cleanup action. They contain no selected contact details.
 - medicare-sms-permission.png: Android runtime SEND_SMS permission prompt from the permission grantability check.
 - medicare-contact-permission.png: Android READ_CONTACTS permission prompt. The system picker was subsequently opened and canceled without selecting a contact; no contact list or details were captured.
 - alarm_timing_measurements.txt: request, trigger, and observation timestamps from one-minute alarm and two consecutive five-minute snooze intervals. Second locked-screen delivery was not confirmed.
 - The black screenshot containing the personal lock-screen wallpaper was removed and is not part of the evidence.
 - No patient records, selected contacts, contact numbers, or Gallery photographs are included in evidence.
-- Latest APK was update-installed and launched; the final Home and Settings screens are captured.
+- Version 1.1 was update-installed; package metadata reports version 1.1 / code 2. A Home screenshot from this install was not retained because profile details were visible.

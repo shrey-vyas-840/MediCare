@@ -4,8 +4,8 @@
     "device": "Vivo V2029",
     "android_version": "12 / API 31",
     "package": "com.medicare.app",
-    "version_name": "1.0",
-    "version_code": 1
+    "version_name": "1.1",
+    "version_code": 2
   },
   "build": {
     "assemble_debug": "PASS",
@@ -17,7 +17,11 @@
   "device": {
     "update_install_before_final_logo_sizing": "PASS",
     "latest_logo_sizing_build_installed": true,
-    "final_home_and_settings_visible": "PASS",
+    "version_1_1_installed": true,
+    "version_1_1_version_metadata": "PASS versionName=1.1 versionCode=2",
+    "settings_footer_and_inventory_label": "PASS_VISIBLE_ON_VIVO",
+    "home_footer": "IMPLEMENTED_SHARED_COMPONENT_NOT_CAPTURED",
+    "launcher_icon": "BUILT_AND_INSTALLED_NOT_VISUALLY_CHECKED_IN_LAUNCHER",
     "contacts_permission_prompt_and_system_picker": "PASS_OPENED_AND_CANCELED_WITHOUT_SELECTING_CONTACT",
     "app_data_cleared": false,
     "app_uninstalled": false,
@@ -47,9 +51,8 @@
     "send_sms_permission_last_observed": "GRANTED",
     "read_contacts_permission": "GRANTED_FOR_REQUESTED_PICKER_FEATURE",
     "automatic_sms_setting": "OFF",
-    "emergency_contacts_configured": 0,
     "sms_sent": false,
-    "contacts_picker_device_test": "NOT_TESTED"
+    "contacts_picker_device_test": "OPENED_AND_CANCELED_WITHOUT_SELECTING_OR_CHANGING_CONTACTS"
   },
   "requirements": [
     {"id": 1, "name": "Alarm timing, identities, duplicates, delivery delays", "status": "IMPLEMENTED_BUILD_TESTED_PARTIAL_DEVICE_TEST; SECOND_LOCKED_DELIVERY_NOT_CONFIRMED"},
@@ -61,7 +64,7 @@
     {"id": 7, "name": "Confirmed Clear All Data", "status": "IMPLEMENTED_BUILD_TESTED; INTENTIONALLY_NOT_EXECUTED"},
     {"id": 8, "name": "Daily, Weekly and As needed frequency", "status": "IMPLEMENTED_BUILD_TESTED; CUSTOM_MIGRATION_COMPILED_NOT_DEVICE_TESTED"},
     {"id": 9, "name": "System and personal ringtone", "status": "IMPLEMENTED_BUILD_TESTED; PLAYBACK_DEVICE_NOT_TESTED"},
-    {"id": 10, "name": "Complete UI/UX redesign", "status": "IMPLEMENTED_BUILD_TESTED; FINAL_HOME_SETTINGS_AND_LOGO_DEVICE_VIEWED; OTHER_SCREENS_NOT_FULLY_TESTED"},
+    {"id": 10, "name": "Complete UI/UX redesign", "status": "IMPLEMENTED_BUILD_TESTED; SETTINGS_FOOTER_AND_INVENTORY_LABEL_DEVICE_VIEWED; HOME_FOOTER_SHARED_COMPONENT; LAUNCHER_ICON_INSTALLED_NOT_LAUNCHER_VISUALLY_CHECKED"},
     {"id": 11, "name": "Preserve existing functionality/data", "status": "IMPLEMENTED_BUILD_TESTED; UPDATE_INSTALL_PRESERVED_DATA; FULL_E2E_DEVICE_NOT_TESTED"}
   ],
   "sensitive_data_safety": {

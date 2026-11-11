@@ -4,20 +4,23 @@ Date: 2026-11-11
 
 Device: Vivo V2029, Android 12 / API 31
 
-Package: `com.medicare.app`, version `1.0` (version code `1`)
+Package: `com.medicare.app`, version `1.1` (version code `2`)
 
 ## Build and preserved-data checks
 
 - `assembleDebug --offline`: **PASS**. Latest APK: `app/build/outputs/apk/debug/app-debug.apk`.
 - `testDebugUnitTest --offline`: **PASS**, 17 tests, zero failures.
 - `assembleDebugAndroidTest --offline`: **PASS** (instrumentation APK compiles). Instrumentation was not run on the phone because the earlier runner replaced the installed app package; it is not safe for the preserved installation.
-- `adb install -r` update install and launch: **PASS** for the final APK, including corrected logo sizing and contact-picker UI. Final Home and Settings screens were captured. No app data was cleared and the application was not uninstalled.
+- `adb install -r` update install and launch: **PASS** for version 1.1 / code 2. Package metadata on the Vivo reports version 1.1. No app data was cleared and the application was not uninstalled.
 - Existing Room import receipt and original JSON backups were present before this pass. The app launched with the prior schedule displayed. No app reset, Gallery deletion, medicine editing, dose confirmation, contact selection, or SMS send was performed.
-- The previously observed Gallery count was 12 photos. No Gallery file operation was run. We did not query or open the user's contact list.
+- The previously observed Gallery count was 12 photos. No Gallery file operation was run. No contact was selected or changed in this pass.
+- On-device Settings capture confirms the full logo and copyright/creator line now sit below the settings controls. The “Inventory” navigation label fits on the Vivo. Home uses the same footer component; the current Home screenshot was not retained as it displayed personal profile content.
+
+- Version 1.1 UI changes (launcher icon, compact footers, and Inventory navigation label) are built and update-installed. The Settings footer and fitting Inventory navigation label were verified on the Vivo.
 
 ## GitHub
 
-The release implementation was committed as `d99adba` and pushed to `origin/master` at `https://github.com/shrey-vyas-840/MediCare.git`. The previous history was preserved; no force push or branch rewrite was used.
+The release implementation was committed as `d99adba` and pushed to `origin/master` at `https://github.com/shrey-vyas-840/MediCare.git`. The previous history was preserved; no force push or branch rewrite was used. The version 1.1 UI/version milestone is built and installed; its commit and push are pending.
 
 ## Eleven requirements
 
@@ -32,12 +35,12 @@ The release implementation was committed as `d99adba` and pushed to `origin/mast
 | 7 | Clear All Data | Confirmed reset cancels alarms/services, removes database and legacy records/preferences/cache. Gallery deletion is a separate checkbox and verifies MediCare ownership. | Build passes. | Deliberately **not executed** to preserve records and photos. Reset behavior is not device-tested. |
 | 8 | Daily/Weekly/As needed frequency | Only those choices are offered. Room v1→v2 maps legacy CUSTOM to Daily while preserving existing dose IDs/data. | Build/unit suite pass; schema migration and instrumentation compile. | Existing schedule remained visible after update; CUSTOM migration case not verified on the phone. |
 | 9 | Custom ringtone | System ringtone and personal audio pickers, persisted URI, preview/stop, and looping alarm service with default fallback. | Build passes. | Ringtone selection and looping playback **not device-tested**. |
-| 10 | Whole-app UI/UX redesign | Theme/typography, home, forms, settings, history, inventory, navigation, alarm, and dialogs updated. Supplied MediCare logo is included on Home and Settings; Settings includes “© 2026 MediCare · Created & Managed by Shrey Vyas.” | Final source compiles. | Final Home and Settings were visible on the Vivo. The full logo, patient-name save control, contact slots, explicit contact Save, and alarm controls were captured. The system contact picker opened and was canceled. Other screens and accessibility/large-font behavior remain unverified. |
+| 10 | Whole-app UI/UX redesign | Theme/typography, home, forms, settings, history, inventory, navigation, alarm, and dialogs updated. Square adaptive launcher icon uses the logo mark; full logo and “Copyright 2026 MediCare | Created & Managed by Shrey Vyas” are in compact Home/Settings footers. | Version 1.1 build passes. | Settings footer and Inventory navigation label verified on the Vivo. Home uses the shared footer; no current Home screenshot was retained. Adaptive icon is packaged and installed but not visually checked in the launcher. Other screens and accessibility/large-font behavior remain unverified. |
 | 11 | Preserve existing functionality/data | Stable dose IDs, grouped schedules, explicit YES/NO path, retries, CameraX, MediaStore, Room, inventory, strips, and historical data paths retained. | Build, JVM suite, and instrumentation compilation pass. | Update install preserved app data and existing schedule. No photos or records were deleted. Full end-to-end historical workflows are **not device-tested** in this pass. |
 
 ## SMS permission and device state
 
-The phone reported SMS capability and Android showed the runtime permission prompt. The prompt was accepted during the earlier check; a later attempt to restore the original denied permission state was rejected by the command approval gate. SEND_SMS therefore remained granted in the last observed phone state, while automatic SMS was off and no contacts were configured. No message was sent. The app must not be described as having verified SMS delivery.
+The phone reported SMS capability and Android showed the runtime permission prompt. The prompt was accepted during the earlier check; a later attempt to restore the original denied permission state was rejected by the command approval gate. SEND_SMS therefore remained granted in the last observed phone state, while automatic SMS was off. No message was sent, and current saved contacts were not audited during this UI update. The app must not be described as having verified SMS delivery.
 
 ## Outstanding device limitations
 
