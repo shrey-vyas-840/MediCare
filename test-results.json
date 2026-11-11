@@ -69,9 +69,17 @@
   ],
   "sensitive_data_safety": {
     "patient_records_or_contacts_in_test_artifacts": false,
-    "personal_wallpaper_screenshot_retained": false,
+    "personal_wallpaper_screenshot_in_repository": false,
     "gallery_photo_actions": "NONE",
     "credentials_or_signing_material_added": false
+  },
+  "temporary_device_screenshots": {
+    "status": "CLEANUP_REJECTED_BY_DEVICE_COMMAND_APPROVAL_GATE",
+    "location": "/sdcard",
+    "files_may_remain": ["home-footer.png", "v11-home.png", "final-home.png", "alarm3.png", "wake.png"],
+    "some_contain_profile_contact_or_wallpaper_content": true,
+    "included_in_repository": false,
+    "gallery_files_deleted": false
   },
   "alarm_test_cleanup": {
     "status": "NOT_CONFIRMED_ON_DEVICE",

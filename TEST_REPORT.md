@@ -15,6 +15,7 @@ Package: `com.medicare.app`, version `1.1` (version code `2`)
 - Existing Room import receipt and original JSON backups were present before this pass. The app launched with the prior schedule displayed. No app reset, Gallery deletion, medicine editing, dose confirmation, contact selection, or SMS send was performed.
 - The previously observed Gallery count was 12 photos. No Gallery file operation was run. No contact was selected or changed in this pass.
 - On-device Settings capture confirms the full logo and copyright/creator line now sit below the settings controls. The “Inventory” navigation label fits on the Vivo. Home uses the same footer component; the current Home screenshot was not retained as it displayed personal profile content.
+- Cleanup of temporary device screenshots was rejected by the command approval gate (no reason supplied). These test-created files may remain under `/sdcard`, including `home-footer.png`, `v11-home.png`, `final-home.png`, `alarm3.png`, and `wake.png`; some contain profile/contact or wallpaper content. They are not included in Git. No Gallery or MediCare photo-folder operation was run.
 
 - Version 1.1 UI changes (launcher icon, compact footers, and Inventory navigation label) are built and update-installed. The Settings footer and fitting Inventory navigation label were verified on the Vivo.
 
