@@ -26,13 +26,17 @@ class AlarmRingService : Service() {
         const val EXTRA_DOSE_ID = "extra_dose_id"
         const val EXTRA_MEDICATION_NAME = "extra_medication_name"
         const val EXTRA_SCHEDULED_TIME = "extra_scheduled_time"
+        const val EXTRA_PATIENT_NAME = "extra_patient_name"
+        const val EXTRA_RINGTONE_URI = "extra_ringtone_uri"
 
-        fun start(context: Context, doseId: String, sessionId: String, medicationName: String, scheduledTime: String) {
+        fun start(context: Context, doseId: String, sessionId: String, medicationName: String, scheduledTime: String, patientName: String = "Patient", ringtoneUri: String? = null) {
             val intent = Intent(context, AlarmRingService::class.java).apply {
                 putExtra(EXTRA_DOSE_ID, doseId)
                 putExtra(EXTRA_SESSION_ID, sessionId)
                 putExtra(EXTRA_MEDICATION_NAME, medicationName)
                 putExtra(EXTRA_SCHEDULED_TIME, scheduledTime)
+                putExtra(EXTRA_PATIENT_NAME, patientName)
+                putExtra(EXTRA_RINGTONE_URI, ringtoneUri)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -66,11 +70,13 @@ class AlarmRingService : Service() {
         val sessionId = intent?.getStringExtra(EXTRA_SESSION_ID) ?: "session_unknown"
         val medName = intent?.getStringExtra(EXTRA_MEDICATION_NAME) ?: "Scheduled Medication"
         val scheduledTime = intent?.getStringExtra(EXTRA_SCHEDULED_TIME) ?: "08:00"
+        val patientName = intent?.getStringExtra(EXTRA_PATIENT_NAME).orEmpty().ifBlank { "Patient" }
+        val ringtoneUri = intent?.getStringExtra(EXTRA_RINGTONE_URI)
 
         Log.d(TAG, "AlarmRingService.onStartCommand: sessionId=$sessionId, medName=$medName, scheduledTime=$scheduledTime")
 
         createNotificationChannel()
-        val notification = buildNotification(doseId, sessionId, medName, scheduledTime)
+        val notification = buildNotification(doseId, sessionId, medName, scheduledTime, patientName)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
@@ -78,7 +84,7 @@ class AlarmRingService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
 
-        playAlarmRingtone()
+        playAlarmRingtone(ringtoneUri)
 
         return START_STICKY
     }
@@ -99,12 +105,13 @@ class AlarmRingService : Service() {
         }
     }
 
-    private fun buildNotification(doseId: String, sessionId: String, medName: String, scheduledTime: String): Notification {
+    private fun buildNotification(doseId: String, sessionId: String, medName: String, scheduledTime: String, patientName: String): Notification {
         val fullScreenIntent = Intent(this, AlarmAlertActivity::class.java).apply {
             putExtra(AlarmAlertActivity.EXTRA_DOSE_ID, doseId)
             putExtra(AlarmAlertActivity.EXTRA_SESSION_ID, sessionId)
             putExtra(AlarmAlertActivity.EXTRA_MEDICATION_NAME, medName)
             putExtra(AlarmAlertActivity.EXTRA_SCHEDULED_TIME, scheduledTime)
+            putExtra(EXTRA_PATIENT_NAME, patientName)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
@@ -116,7 +123,7 @@ class AlarmRingService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("TIME TO TAKE YOUR MEDICINE ($scheduledTime)")
+            .setContentTitle("$patientName · medicine time ($scheduledTime)")
             .setContentText(medName)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -127,28 +134,45 @@ class AlarmRingService : Service() {
             .build()
     }
 
-    private fun playAlarmRingtone() {
+    private fun playAlarmRingtone(selectedUri: String?) {
+        val alertUri = selectedUri?.let(android.net.Uri::parse) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        val player = MediaPlayer()
         try {
             mediaPlayer?.release()
-            val alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(applicationContext, alertUri)
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                isLooping = true
-                prepare()
-                start()
+            mediaPlayer = player
+            player.setDataSource(applicationContext, alertUri)
+            player.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            player.isLooping = true
+            player.setOnPreparedListener { prepared ->
+                if (mediaPlayer === prepared) {
+                    prepared.start()
+                    Log.d(TAG, "Looping alarm ringtone playback started.")
+                }
             }
-            Log.d(TAG, "Alarm ringtone playing started successfully.")
+            player.setOnErrorListener { failed, what, extra ->
+                Log.e(TAG, "Alarm ringtone playback failed: what=$what extra=$extra")
+                if (mediaPlayer === failed) {
+                    runCatching { failed.release() }
+                    mediaPlayer = null
+                    if (selectedUri != null) playAlarmRingtone(null)
+                }
+                true
+            }
+            player.prepareAsync()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to play alarm ringtone", e)
+            runCatching { player.release() }
+            if (mediaPlayer === player) mediaPlayer = null
+            if (selectedUri != null) {
+                playAlarmRingtone(null)
+            }
         }
     }
 

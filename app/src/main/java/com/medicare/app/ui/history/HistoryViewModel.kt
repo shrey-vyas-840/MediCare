@@ -21,6 +21,8 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
 
     val doseEvents: StateFlow<List<DoseEvent>> = historyRepository.observeAllDoseEvents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val allDoseEvents: StateFlow<List<DoseEvent>> = historyRepository.observeAllStoredDoseEvents()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val medications: StateFlow<List<Medication>> = medicationRepository.medicationsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -30,10 +32,15 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         val endDateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(calendar.time)
         calendar.add(Calendar.DAY_OF_YEAR, -60)
         val startDateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(calendar.time)
-        val events = doseEvents.value.filter { it.scheduledDate in startDateStr..endDateStr }
+        val events = allDoseEvents.value.filter {
+            it.scheduledDate in startDateStr..endDateStr && (
+                it.status in listOf(com.medicare.app.data.models.DoseStatus.MISSED, com.medicare.app.data.models.DoseStatus.SKIPPED) ||
+                    (it.status == com.medicare.app.data.models.DoseStatus.TAKEN && it.userAcknowledged && it.submissionTime != null)
+                )
+        }
         if (events.isEmpty()) return 0f
-        val eligible = events.count { it.status in listOf(com.medicare.app.data.models.DoseStatus.TAKEN, com.medicare.app.data.models.DoseStatus.MISSED, com.medicare.app.data.models.DoseStatus.SKIPPED) }
+        val eligible = events.size
         if (eligible == 0) return 0f
-        return events.count { it.status == com.medicare.app.data.models.DoseStatus.TAKEN }.toFloat() / eligible
+        return events.count { it.status == com.medicare.app.data.models.DoseStatus.TAKEN && it.userAcknowledged && it.submissionTime != null }.toFloat() / eligible
     }
 }

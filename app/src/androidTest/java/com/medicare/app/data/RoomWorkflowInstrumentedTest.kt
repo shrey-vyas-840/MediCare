@@ -15,6 +15,7 @@ import com.medicare.app.alarms.AlarmScheduler
 import com.medicare.app.data.models.DoseEvent
 import com.medicare.app.data.models.DoseStatus
 import com.medicare.app.data.models.Frequency
+import com.medicare.app.data.models.EmergencyAlert
 import com.medicare.app.data.models.Medication
 import com.medicare.app.data.models.MedicineSession
 import com.medicare.app.data.models.SessionStatus
@@ -59,6 +60,53 @@ class RoomWorkflowInstrumentedTest {
         val tomorrow = repo.getDoseEventsForSession(repo.getSessionsForDate("2026-11-12").single().sessionId).single()
         assertNotEquals(firstDose.eventId, tomorrow.eventId)
         assertEquals(DoseStatus.SCHEDULED, tomorrow.status)
+    }
+
+    @Test fun asNeededUseDeductsOneTabletAndCreatesNoScheduledDoseOrPhoto() = runBlocking {
+        val medicine = Medication("prn-med", "As-needed", 1.0, "tablet", emptyList(), Frequency.AS_NEEDED, initialQuantity = 10, currentInventory = 10)
+        db.medications().upsert(medicine)
+        val repo = SessionRepository(db)
+        repo.generateSessionsForDate("2026-11-11", listOf(medicine))
+        assertTrue(repo.getSessionsForDate("2026-11-11").isEmpty())
+        assertTrue(repo.recordAsNeededUse(medicine.id))
+        assertFalse(repo.recordAsNeededUse(medicine.id, 10))
+        assertEquals(9, db.medications().byId(medicine.id)?.currentInventory)
+        assertEquals(1, db.asNeededUsage().all().size)
+        assertTrue(db.doses().all().isEmpty())
+    }
+
+    @Test fun weeklyMedicineUsesStartWeekdayAndCustomLegacyImportMapsToDaily() = runBlocking {
+        val zone = java.time.ZoneId.systemDefault()
+        val monday = java.time.LocalDate.of(2026, 11, 9)
+        val mondayStart = monday.atStartOfDay(zone).toInstant().toEpochMilli()
+        val weekly = Medication("weekly-med", "Weekly", 1.0, "tablet", listOf("08:00"), Frequency.WEEKLY, startDate = mondayStart, initialQuantity = 8, currentInventory = 8)
+        db.medications().upsert(weekly)
+        val repo = SessionRepository(db)
+        repo.generateSessionsForDate("2026-11-09", listOf(weekly))
+        assertEquals(1, repo.getSessionsForDate("2026-11-09").size)
+        repo.generateSessionsForDate("2026-11-10", listOf(weekly))
+        assertTrue(repo.getSessionsForDate("2026-11-10").isEmpty())
+
+        val folder = File(context.cacheDir, "custom-frequency-${UUID.randomUUID()}").apply { mkdirs() }
+        val legacyDb = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+        try {
+            val legacy = weekly.copy(id = "legacy-custom", frequency = Frequency.CUSTOM)
+            JsonStorage(folder).save("medications.json", listOf(legacy))
+            LegacyDataImporter(legacyDb, folder).importIfNeeded()
+            assertEquals(Frequency.DAILY, legacyDb.medications().byId(legacy.id)?.frequency)
+        } finally { folder.deleteRecursively(); legacyDb.close() }
+    }
+
+    @Test fun emergencyAlertRowsAreIdempotentPerSessionAndRecipient() = runBlocking {
+        val medicine = Medication("alert-med", "Scheduled", 1.0, "tablet", listOf("08:00"), initialQuantity = 10, currentInventory = 10)
+        db.medications().upsert(medicine)
+        val repo = SessionRepository(db)
+        repo.generateSessionsForDate("2026-11-11", listOf(medicine))
+        val session = repo.getSessionsForDate("2026-11-11").single()
+        val alert = EmergencyAlert("session-contact", session.sessionId, "+10000000000", "Check in", 1_800_000_000_000L, null, "PERMISSION_BLOCKED")
+        assertNotEquals(-1L, db.emergencyAlerts().insertIfNew(alert))
+        assertEquals(-1L, db.emergencyAlerts().insertIfNew(alert.copy(outcome = "SENT")))
+        assertEquals("PERMISSION_BLOCKED", db.emergencyAlerts().forSession(session.sessionId).single().outcome)
     }
 
     @Test fun completionIsAtomicIdempotentAndVisibleToEveryDatabaseObserver() = runBlocking {
@@ -163,29 +211,30 @@ class RoomWorkflowInstrumentedTest {
         }
     }
 
-    @Test fun eachAlarmKindHasASeparatePendingIntentAndCancellationRemovesAll() {
-        val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    @Test fun alarmKindsHaveStableDistinctIdentitiesAndReschedulingLeavesOnlyOneKind() {
         val dose = DoseEvent("alarm-${UUID.randomUUID()}", "alarm-session", "alarm-med", "2027-01-01", "08:00")
-        AlarmScheduler.AlarmKind.entries.forEach { kind ->
-            AlarmScheduler.scheduleDoseAlarm(context, dose, kind, System.currentTimeMillis() + 60 * 60_000L)
-        }
-        val pending = AlarmScheduler.AlarmKind.entries.map { kind ->
+        fun pending(kind: AlarmScheduler.AlarmKind) = run {
             val intent = Intent(context, AlarmReceiver::class.java).apply {
                 action = AlarmScheduler.ACTION_MEDICATION_ALARM
                 data = Uri.parse("medicare://dose/${dose.eventId}/${kind.name.lowercase()}")
             }
             PendingIntent.getBroadcast(context, 31 * dose.eventId.hashCode() + kind.ordinal, intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
         }
-        try { assertTrue(pending.all { it != null }) }
-        finally {
+        try {
+            val first = System.currentTimeMillis() + 60 * 60_000L
+            AlarmScheduler.scheduleDoseAlarm(context, dose, AlarmScheduler.AlarmKind.ORIGINAL, first)
+            assertNotNull(pending(AlarmScheduler.AlarmKind.ORIGINAL))
+            AlarmScheduler.scheduleDoseAlarm(context, dose, AlarmScheduler.AlarmKind.SNOOZE, first + 300_000L)
+            assertNull(pending(AlarmScheduler.AlarmKind.ORIGINAL))
+            assertNotNull(pending(AlarmScheduler.AlarmKind.SNOOZE))
+            AlarmScheduler.scheduleDoseAlarm(context, dose.copy(nextReminderAt = first + 600_000L), AlarmScheduler.AlarmKind.SNOOZE, first + 600_000L)
+            assertNotNull(pending(AlarmScheduler.AlarmKind.SNOOZE))
+            AlarmScheduler.scheduleDoseAlarm(context, dose, AlarmScheduler.AlarmKind.RETRY, first + 900_000L)
+            assertNull(pending(AlarmScheduler.AlarmKind.SNOOZE))
+            assertNotNull(pending(AlarmScheduler.AlarmKind.RETRY))
+        } finally {
             AlarmScheduler.cancelDoseAlarms(context, dose.eventId)
-            AlarmScheduler.AlarmKind.entries.forEach { kind ->
-                val intent = Intent(context, AlarmReceiver::class.java).apply {
-                    action = AlarmScheduler.ACTION_MEDICATION_ALARM
-                    data = Uri.parse("medicare://dose/${dose.eventId}/${kind.name.lowercase()}")
-                }
-                assertNull(PendingIntent.getBroadcast(context, 31 * dose.eventId.hashCode() + kind.ordinal, intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE))
-            }
+            AlarmScheduler.AlarmKind.entries.forEach { assertNull(pending(it)) }
         }
     }
 }

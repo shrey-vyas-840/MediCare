@@ -3,46 +3,81 @@
   "environment": {
     "device": "Vivo V2029",
     "android_version": "12 / API 31",
-    "device_id": "eab1db0d",
     "package": "com.medicare.app",
     "version_name": "1.0",
     "version_code": 1
   },
   "build": {
-    "unit_tests": "PASS_UP_TO_DATE",
-    "debug_apk": "PASS",
-    "installed_update": "PASS",
-    "activity_launch": "PASS",
-    "visible_ui": "BLOCKED_SYSTEM_NOTIFICATION_SHADE_AND_BLACK_CAPTURE"
+    "assemble_debug": "PASS",
+    "jvm_unit_tests": {"status": "PASS", "tests": 17, "failures": 0},
+    "instrumentation_apk_compile": "PASS",
+    "instrumentation_device_run": "NOT_RUN_PRESERVED_INSTALLATION",
+    "apk": "app/build/outputs/apk/debug/app-debug.apk"
   },
-  "migration": {
-    "status": "PRESERVED_IMPORTED_WITH_REVIEW_ITEMS",
-    "medicines_imported": 1,
-    "medicines_source": 1,
-    "sessions_imported": 2,
-    "sessions_source": 2,
-    "unique_dose_occurrences_imported": 1,
-    "raw_dose_rows": 11,
-    "duplicate_occurrences_merged": 7,
-    "invalid_or_duplicate_dose_rows_skipped": 3,
-    "original_json_and_backups_present": true
+  "device": {
+    "update_install_before_final_logo_sizing": "PASS",
+    "latest_logo_sizing_build_installed": true,
+    "final_home_and_settings_visible": "PASS",
+    "contacts_permission_prompt_and_system_picker": "PASS_OPENED_AND_CANCELED_WITHOUT_SELECTING_CONTACT",
+    "app_data_cleared": false,
+    "app_uninstalled": false,
+    "gallery_files_deleted_or_changed": false,
+    "existing_gallery_count_last_observed": 12,
+    "existing_schedule_visible_after_update": true
   },
-  "tests": [
-    {"id": "jvm-unit-suite", "status": "PASS_UP_TO_DATE", "evidence": "Gradle testDebugUnitTest --offline task outcome"},
-    {"id": "debug-apk-build", "status": "PASS", "evidence": "Gradle assembleDebug --offline; app/build/outputs/apk/debug/app-debug.apk"},
-    {"id": "update-install", "status": "PASS", "evidence": "adb install -r; existing package data retained"},
-    {"id": "main-activity-launch", "status": "PASS", "evidence": "Activity resumed; no FATAL EXCEPTION in inspected logcat tail"},
-    {"id": "visible-ui", "status": "BLOCKED", "actual": "System notification shade remained focused over MediCare and screenshot was black", "evidence": "test-evidence/medicare-final-screen.png"},
-    {"id": "gallery-preservation", "status": "PASS", "actual": "12 files remain in Pictures/MediCare"},
-    {"id": "app-data-preservation", "status": "PASS", "actual": "Legacy JSON, backups, Room import receipt, and DataStore directory remain"},
-    {"id": "physical-instrumentation", "status": "NOT_RUN", "actual": "Not rerun because the instrumentation runner previously removed the installed app package on this device; historical artifacts record 7 passing tests"},
-    {"id": "alarm-camera-navigation-visual-workflows", "status": "NOT_VERIFIED"},
-    {"id": "legacy-dose-review", "status": "OPEN", "actual": "Three skipped rows remain in preserved JSON/backups for manual review"}
+  "alarm_timing": {
+    "status": "SNOOZE_INTERVALS_PASS_BACKGROUNDED_DELIVERY_LIMITATION",
+    "initial_test_expected_trigger_ms": 1794394294344,
+    "initial_test_alert_observed_ms": 1794394305705,
+    "initial_test_delivery_delay_ms": 11361,
+    "first_snooze_tap_ms": 1794394330044,
+    "first_snooze_registered_trigger_ms": 1794394630294,
+    "first_snooze_interval_ms": 300250,
+    "first_snoozed_alert_observed_ms": 1794394658665,
+    "first_snoozed_delivery_delay_ms": 28371,
+    "second_snooze_tap_ms": 1794394698478,
+    "second_snooze_registered_interval_ms": 300259,
+    "second_snooze_check_ms": 1794395020300,
+    "second_snoozed_alert_confirmed": false,
+    "second_snoozed_device_state": "Vivo asleep; lock screen remained visible; no app alert activity or notification confirmed"
+  },
+  "sms": {
+    "device_sms_capable": true,
+    "send_sms_runtime_prompt_shown": true,
+    "send_sms_permission_last_observed": "GRANTED",
+    "read_contacts_permission": "GRANTED_FOR_REQUESTED_PICKER_FEATURE",
+    "automatic_sms_setting": "OFF",
+    "emergency_contacts_configured": 0,
+    "sms_sent": false,
+    "contacts_picker_device_test": "NOT_TESTED"
+  },
+  "requirements": [
+    {"id": 1, "name": "Alarm timing, identities, duplicates, delivery delays", "status": "IMPLEMENTED_BUILD_TESTED_PARTIAL_DEVICE_TEST; SECOND_LOCKED_DELIVERY_NOT_CONFIRMED"},
+    {"id": 2, "name": "Emergency SMS alerts and fallback", "status": "IMPLEMENTED_BUILD_TESTED; CONTACTS_PERMISSION_AND_PICKER_OPENED; NO_CONTACT_SELECTED; SMS_NOT_SENT"},
+    {"id": 3, "name": "As-needed medicines and inventory", "status": "IMPLEMENTED_BUILD_TESTED_UNIT_TESTED; DEVICE_NOT_TESTED"},
+    {"id": 4, "name": "Confirmed-dose-only History", "status": "IMPLEMENTED_BUILD_TESTED_UNIT_TESTED; DEVICE_NOT_TESTED"},
+    {"id": 5, "name": "MediCare Photo Proof watermark", "status": "IMPLEMENTED_BUILD_TESTED_UNIT_TESTED; CAMERA_GALLERY_DEVICE_NOT_TESTED"},
+    {"id": 6, "name": "Persistent patient name", "status": "IMPLEMENTED_BUILD_TESTED; SAVE_UI_DEVICE_NOT_TESTED"},
+    {"id": 7, "name": "Confirmed Clear All Data", "status": "IMPLEMENTED_BUILD_TESTED; INTENTIONALLY_NOT_EXECUTED"},
+    {"id": 8, "name": "Daily, Weekly and As needed frequency", "status": "IMPLEMENTED_BUILD_TESTED; CUSTOM_MIGRATION_COMPILED_NOT_DEVICE_TESTED"},
+    {"id": 9, "name": "System and personal ringtone", "status": "IMPLEMENTED_BUILD_TESTED; PLAYBACK_DEVICE_NOT_TESTED"},
+    {"id": 10, "name": "Complete UI/UX redesign", "status": "IMPLEMENTED_BUILD_TESTED; FINAL_HOME_SETTINGS_AND_LOGO_DEVICE_VIEWED; OTHER_SCREENS_NOT_FULLY_TESTED"},
+    {"id": 11, "name": "Preserve existing functionality/data", "status": "IMPLEMENTED_BUILD_TESTED; UPDATE_INSTALL_PRESERVED_DATA; FULL_E2E_DEVICE_NOT_TESTED"}
   ],
-  "apk": "D:/MediCare/app/build/outputs/apk/debug/app-debug.apk",
-  "open_issues": [
-    "Visible UI acceptance and physical reminder/camera/navigation workflows remain unverified.",
-    "Three legacy dose rows need review before any reconciliation.",
-    "The exact contents of the existing DataStore preference values were not inspected."
-  ]
+  "sensitive_data_safety": {
+    "patient_records_or_contacts_in_test_artifacts": false,
+    "personal_wallpaper_screenshot_retained": false,
+    "gallery_photo_actions": "NONE",
+    "credentials_or_signing_material_added": false
+  },
+  "alarm_test_cleanup": {
+    "status": "NOT_CONFIRMED_ON_DEVICE",
+    "settings_action": "End outstanding alarm tests (synthetic rows/alarms only)",
+    "device_command_after_install": "REJECTED_BY_COMMAND_APPROVAL_GATE"
+  },
+  "git": {
+    "repository": "https://github.com/shrey-vyas-840/MediCare.git",
+    "commit": "PENDING",
+    "push": "PENDING"
+  }
 }

@@ -2,6 +2,7 @@ package com.medicare.app.ui.medication
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -14,6 +15,9 @@ import androidx.compose.ui.unit.dp
 import com.medicare.app.data.models.Frequency
 import com.medicare.app.data.models.Medication
 import java.util.UUID
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +38,7 @@ fun AddEditMedicationScreen(
     var currentInventory by remember(medicationId) { mutableStateOf("14") }
     var stripRows by remember(medicationId) { mutableStateOf("2") }
     var stripColumns by remember(medicationId) { mutableStateOf("7") }
+    var weeklyDay by remember(medicationId) { mutableIntStateOf(LocalDate.now().dayOfWeek.value) }
     var validationError by remember(medicationId) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(existingMed) {
@@ -43,6 +48,7 @@ fun AddEditMedicationScreen(
             unit = existingMed.unit
             timeInput = existingMed.times.joinToString(", ")
             frequency = existingMed.frequency
+            weeklyDay = java.time.Instant.ofEpochMilli(existingMed.startDate).atZone(ZoneId.systemDefault()).dayOfWeek.value
             initialQuantity = existingMed.initialQuantity.toString()
             currentInventory = existingMed.currentInventory.toString()
             stripRows = existingMed.stripRows.toString().let { if (it == "0") "2" else it }
@@ -98,35 +104,46 @@ fun AddEditMedicationScreen(
                 )
             }
 
-            OutlinedTextField(
-                value = timeInput,
-                onValueChange = { timeInput = it },
-                label = { Text("Times (Comma separated, e.g. 08:00, 20:00)") },
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (frequency != Frequency.AS_NEEDED) {
+                OutlinedTextField(
+                    value = timeInput,
+                    onValueChange = { timeInput = it },
+                    label = { Text("Times (Comma separated, e.g. 08:00, 20:00)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else Text("As-needed medicines appear in inventory and do not create alarms or photo tasks.", style = MaterialTheme.typography.bodySmall)
 
             Text("Frequency", style = MaterialTheme.typography.bodyMedium)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Frequency.entries.forEach { freq ->
+                listOf(Frequency.DAILY, Frequency.WEEKLY, Frequency.AS_NEEDED).forEach { freq ->
                     FilterChip(
                         selected = frequency == freq,
                         onClick = { frequency = freq },
-                        label = { Text(freq.name) }
+                        label = { Text(when (freq) { Frequency.DAILY -> "Daily"; Frequency.WEEKLY -> "Weekly"; else -> "As needed" }) }
                     )
+                }
+            }
+
+            if (frequency == Frequency.WEEKLY) {
+                Text("Repeat every week", style = MaterialTheme.typography.bodyMedium)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    DayOfWeek.entries.forEach { day ->
+                        FilterChip(selected = weeklyDay == day.value, onClick = { weeklyDay = day.value }, label = { Text(day.name.take(3)) })
+                    }
                 }
             }
 
             HorizontalDivider()
 
-            Text("Pill Strip Setup", style = MaterialTheme.typography.titleMedium)
+            Text(if (frequency == Frequency.AS_NEEDED) "Inventory" else "Pill Strip Setup", style = MaterialTheme.typography.titleMedium)
 
             OutlinedTextField(
                 value = initialQuantity,
                 onValueChange = { initialQuantity = it },
-                label = { Text("How many tablets are in one full strip? (e.g. 14)") },
+                label = { Text(if (frequency == Frequency.AS_NEEDED) "Starting tablet inventory" else "How many tablets are in one full strip? (e.g. 14)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -134,12 +151,12 @@ fun AddEditMedicationScreen(
             OutlinedTextField(
                 value = currentInventory,
                 onValueChange = { currentInventory = it },
-                label = { Text("How many tablets are left in the strip right now? (e.g. 10)") },
+                label = { Text(if (frequency == Frequency.AS_NEEDED) "Tablets currently available" else "How many tablets are left in the strip right now? (e.g. 10)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            if (frequency != Frequency.AS_NEEDED) Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = stripRows,
                     onValueChange = { stripRows = it.filter(Char::isDigit) },
@@ -165,11 +182,12 @@ fun AddEditMedicationScreen(
                     val leftQty = currentInventory.toIntOrNull()
                     val rows = stripRows.toIntOrNull()
                     val columns = stripColumns.toIntOrNull()
-                    val capacity = if (rows != null && columns != null) rows * columns else 0
+                    val capacity = if (frequency == Frequency.AS_NEEDED) Int.MAX_VALUE else if (rows != null && columns != null) rows * columns else 0
                     validationError = when {
                         name.isBlank() -> "Enter the medicine name."
-                        timeInput.split(",").any { it.isNotBlank() && !it.trim().matches(Regex("([01]\\d|2[0-3]):[0-5]\\d")) } -> "Enter each reminder time as HH:mm."
-                        rows !in 1..20 || columns !in 1..20 -> "Strip rows and columns must each be between 1 and 20."
+                        frequency != Frequency.AS_NEEDED && timeInput.isBlank() -> "Enter at least one reminder time."
+                        frequency != Frequency.AS_NEEDED && timeInput.split(",").any { it.isNotBlank() && !it.trim().matches(Regex("([01]\\d|2[0-3]):[0-5]\\d")) } -> "Enter each reminder time as HH:mm."
+                        frequency != Frequency.AS_NEEDED && (rows !in 1..20 || columns !in 1..20) -> "Strip rows and columns must each be between 1 and 20."
                         fullQty == null || fullQty < 1 || fullQty > capacity -> "Full strip quantity must fit within $capacity positions."
                         leftQty == null || leftQty !in 0..fullQty -> "Tablets left must be between zero and the full strip quantity."
                         else -> null
@@ -180,11 +198,15 @@ fun AddEditMedicationScreen(
                         name = name.ifBlank { "Unknown Medicine" },
                         dosage = dosage.toDoubleOrNull() ?: 1.0,
                         unit = unit,
-                        times = timesList.ifEmpty { listOf("08:00") },
+                        times = if (frequency == Frequency.AS_NEEDED) emptyList() else timesList,
                         frequency = frequency,
+                        startDate = if (frequency == Frequency.WEEKLY) {
+                            val today = LocalDate.now()
+                            today.plusDays(((weeklyDay - today.dayOfWeek.value + 7) % 7).toLong()).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        } else existingMed?.startDate ?: System.currentTimeMillis(),
                         active = existingMed?.active ?: true,
-                        stripRows = rows!!,
-                        stripColumns = columns!!,
+                        stripRows = if (frequency == Frequency.AS_NEEDED) 0 else rows!!,
+                        stripColumns = if (frequency == Frequency.AS_NEEDED) 0 else columns!!,
                         initialQuantity = fullQty!!,
                         currentInventory = leftQty!!
                     )

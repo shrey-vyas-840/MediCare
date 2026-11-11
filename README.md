@@ -1,41 +1,50 @@
 # MediCare
 
-MediCare is an Android medication reminder and dose tracking app built with Kotlin, Jetpack Compose, Room, and CameraX.
+MediCare is an offline-first Android medication reminder and dose tracking app built with Kotlin, Jetpack Compose, Room, DataStore, AlarmManager, and CameraX.
 
 ## Features
 
-- Create and edit medicines, schedules, and inventory quantities.
-- Group medicines into scheduled sessions and record each dose.
-- Schedule reminders with alarm recovery after device restart or app update.
-- Capture dose evidence and save photos in the device Gallery using MediaStore URIs.
-- Browse dose history and inventory changes.
-- Import existing JSON records into Room while retaining the original files and migration backups.
+- Daily and weekly scheduled medicines with grouped sessions, stable dose IDs, alarm retries, and explicit dose confirmation.
+- As-needed medicines with a separate inventory action that records one tablet used and does not create a dose alarm or photo.
+- Room-backed medication, session, dose, as-needed-use, and emergency-alert records. Existing JSON records are imported once and retained as recovery backups.
+- Exact medication reminders, five-minute snooze/retry scheduling, alarm reconciliation after reboot or package update, and looping system or personal audio.
+- Dose photo capture with a MediCare Photo Proof watermark and Gallery saving.
+- History limited to submitted and explicitly confirmed scheduled doses.
+- Locally saved patient name and up to two emergency contacts selected from the system contacts picker. Automatic emergency SMS is opt-in; Android permission/device restrictions produce a recorded manual-composer fallback.
+- User-confirmed full data reset. Gallery photo removal is a separate choice limited to verifiably MediCare-owned items.
+- Light and dark themes, accessibility-aware Compose controls, the supplied MediCare brand logo, and settings for alarm and data preferences.
 
 ## Architecture
 
-The Android app uses Compose screens with lifecycle-aware view models. Room is the authoritative local database for medicines, sessions, and dose events. Repositories encapsulate transactional updates and flows. `LegacyDataImporter` performs a one-time import from the legacy JSON files. Alarm receivers and services handle reminders; CameraX and MediaStore handle photo capture and persistence.
+Compose screens are backed by lifecycle-aware view models. Room is authoritative for medicines, sessions, dose events, as-needed use, and emergency alert records. DataStore stores user preferences. Repositories own schedule generation, grouping, inventory updates, and history eligibility. Alarm receivers, an alarm foreground service, and reconciliation handle reminder delivery. CameraX captures evidence; MediaStore saves and updates the final watermarked image in Gallery. Legacy JSON import preserves source and backup files.
 
 ## Requirements
 
-- Android Studio with the Android SDK for API 37 and JDK 17.
-- A device or emulator running Android 8.0 (API 26) or newer.
+- Android Studio with Android SDK API 37 and JDK 17.
+- Android 8.0 (API 26) or newer.
 
-## Build
+## Build and install
 
-Open the project in Android Studio, or use the Gradle wrapper:
-
-```powershell
-./gradlew.bat assembleDebug
-```
-
-Install a debug build on a connected device with:
+From PowerShell:
 
 ```powershell
-./gradlew.bat installDebug
+.\gradlew.bat assembleDebug
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Device-specific SDK paths belong in the ignored `local.properties` file and should not be committed.
+Install or update-install to a connected device:
+
+```powershell
+.\gradlew.bat installDebug
+```
+
+The debug APK is `app/build/outputs/apk/debug/app-debug.apk`. Keep machine-specific SDK paths in the ignored `local.properties`; do not commit signing keys, private contacts, patient data, or Gallery photos.
 
 ## Tests
 
-Run local unit tests with `./gradlew.bat testDebugUnitTest`. Instrumentation tests can be run on an attached device with `./gradlew.bat connectedDebugAndroidTest`; note that Android's test runner may replace the installed app package during instrumentation. Back up app data before running it on a device with important local records.
+Run local tests:
+
+```powershell
+.\gradlew.bat testDebugUnitTest
+```
+
+Compile device instrumentation tests with `assembleDebugAndroidTest`. The instrumentation suite has not been run on the preserved Vivo installation in this release pass because the previous runner replaced the installed app package. See `TEST_REPORT.md`, `test-results.json`, and `test-evidence/` for current device checks and limitations. On Vivo/Funtouch OS, enable the app's auto-start/background allowance if alarms are delayed while the phone is locked.

@@ -3,10 +3,11 @@ package com.medicare.app.data.repositories
 import com.medicare.app.data.models.Medication
 import com.medicare.app.data.storage.AppDatabase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class MedicationRepository(private val db: AppDatabase) {
-    val medicationsFlow: Flow<List<Medication>> = db.medications().observeAll()
-    suspend fun getMedications(): List<Medication> = db.medications().all()
+    val medicationsFlow: Flow<List<Medication>> = db.medications().observeAll().map { list -> list.filterNot { it.id.startsWith(com.medicare.app.alarms.AlarmTestManager.PREFIX) } }
+    suspend fun getMedications(): List<Medication> = db.medications().all().filterNot { it.id.startsWith(com.medicare.app.alarms.AlarmTestManager.PREFIX) }
     suspend fun getMedicationById(id: String): Medication? = db.medications().byId(id)
     suspend fun saveMedication(medication: Medication) {
         val existing = db.medications().byId(medication.id)

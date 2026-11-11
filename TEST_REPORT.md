@@ -1,23 +1,44 @@
-# MediCare test report
+# MediCare next release test report
 
 Date: 2026-11-11
-Device: Vivo V2029, Android 12 (API 31), ADB `eab1db0d`
-Package: `com.medicare.app`, version 1.0, version code 1
 
-## Current verification
+Device: Vivo V2029, Android 12 / API 31
 
-- `assembleDebug --offline`: PASS. APK: `app/build/outputs/apk/debug/app-debug.apk`.
-- `testDebugUnitTest --offline`: PASS. Gradle reported the task up to date; existing generated test results are in `app/build/test-results/testDebugUnitTest/`.
-- Update install with `adb install -r`: PASS. Package data was retained.
-- `MainActivity` launch: PASS as an activity start and resumed activity; no `FATAL EXCEPTION` appeared in the inspected logcat tail. A visible app screen could not be verified: the phone had the system notification shade in focus over the app and the saved screenshot is black.
-- Existing app files remain, including original JSON, `.bak`, `.pre-room.bak`, Room import receipt, and DataStore directory.
-- `Pictures/MediCare` contains 12 existing photos after the update install. No photos were removed or changed.
-- Device instrumentation was not rerun in this pass because the Android instrumentation runner previously removed the installed package on this phone. Historical report artifacts show 7 instrumentation tests passed, but that result does not constitute a fresh run for this build.
+Package: `com.medicare.app`, version `1.0` (version code `1`)
 
-## Migration state
+## Build and preserved-data checks
 
-The preserved on-device migration receipt reports 1/1 medicine, 2/2 sessions, and 1 unique dose occurrence imported from 11 dose rows; duplicate scheduled occurrences were merged and three rows with duplicate IDs or missing medicine references were skipped for review. Original JSON and backup copies remain available. No reconciliation was attempted.
+- `assembleDebug --offline`: **PASS**. Latest APK: `app/build/outputs/apk/debug/app-debug.apk`.
+- `testDebugUnitTest --offline`: **PASS**, 17 tests, zero failures.
+- `assembleDebugAndroidTest --offline`: **PASS** (instrumentation APK compiles). Instrumentation was not run on the phone because the earlier runner replaced the installed app package; it is not safe for the preserved installation.
+- `adb install -r` update install and launch: **PASS** for the final APK, including corrected logo sizing and contact-picker UI. Final Home and Settings screens were captured. No app data was cleared and the application was not uninstalled.
+- Existing Room import receipt and original JSON backups were present before this pass. The app launched with the prior schedule displayed. No app reset, Gallery deletion, medicine editing, dose confirmation, contact selection, or SMS send was performed.
+- The previously observed Gallery count was 12 photos. No Gallery file operation was run. We did not query or open the user's contact list.
 
-## Remaining verification
+## Eleven requirements
 
-Visible UI acceptance, reminder ringing/snooze/retry, CameraX capture and confirmation, inventory refresh, navigation, and strip rendering were not verified during this pass. The captured screen and prior migration receipt are retained under `test-evidence/` and app storage respectively.
+| # | Requirement | Implementation | Build/unit evidence | Vivo device result |
+|---|---|---|---|---|
+| 1 | Alarm timing, identities, duplicates, delivery delay | Shared five-minute calculation; one stable dose identity with mutually exclusive ORIGINAL/SNOOZE/RETRY alarms; alarm validation and a short receiver wake lock. | Timing and PendingIntent instrumentation coverage compiles; JVM timing tests pass. | Test alarm and first snooze visibly opened the production alert. Tap-to-registered intervals were 300.250 s and 300.259 s. First snoozed delivery was observed 28.371 s after its registered trigger. The second test occurred while the Vivo was asleep; after the trigger the lock screen remained visible and no MediCare alarm activity/notification was confirmed. This is a **background delivery failure/limitation**, not a pass. See `test-evidence/alarm_timing_measurements.txt`. |
+| 2 | Emergency SMS, one-hour incomplete check, duplicates, persistent records | Two persisted contact slots, opt-in automatic SMS, one-hour checks, per-session/recipient unique alert records, failure outcomes and manual composer fallback. SMS permission is requested at runtime. | Source compiles; emergency timing tests pass. | Vivo reported SMS-capable and Android presented the SEND_SMS prompt; permission was observed granted later. The Contacts permission prompt appeared and the system contact picker opened; it was canceled without selecting or exposing a contact in evidence. Automatic SMS stayed off; no SMS was sent. SMS execution and manual fallback have not been exercised with a recipient. |
+| 3 | As-needed inventory workflow | Separate as-needed use rows; “Mark 1 Tablet Used” decrements one unit; no scheduled occurrence, alarm, or photo. | Build and unit suite pass; Room workflow instrumentation compiles. | **Not device-tested** this pass. |
+| 4 | Confirmed-dose-only History | History query includes only submitted, explicitly acknowledged TAKEN doses on or before today; raw historical records are retained. | History eligibility unit tests pass. | **Not device-tested** this pass. |
+| 5 | Photo Proof watermark and preview | Shared MediCare Photo Proof formatter; scheduled, captured, and confirmed submission timestamps; the final preview and saved Gallery URI use the same watermarked image. | Formatter unit tests pass. | CameraX capture, confirmation, preview, and Gallery save **not device-tested** this pass; no photo was captured or altered. |
+| 6 | Persistent patient name | DataStore setting, explicit Save action, and use in relevant home, alarm, emergency message, and proof flows. | Build passes. | Existing default name remained visible. The new Save interaction was **not device-tested**. |
+| 7 | Clear All Data | Confirmed reset cancels alarms/services, removes database and legacy records/preferences/cache. Gallery deletion is a separate checkbox and verifies MediCare ownership. | Build passes. | Deliberately **not executed** to preserve records and photos. Reset behavior is not device-tested. |
+| 8 | Daily/Weekly/As needed frequency | Only those choices are offered. Room v1→v2 maps legacy CUSTOM to Daily while preserving existing dose IDs/data. | Build/unit suite pass; schema migration and instrumentation compile. | Existing schedule remained visible after update; CUSTOM migration case not verified on the phone. |
+| 9 | Custom ringtone | System ringtone and personal audio pickers, persisted URI, preview/stop, and looping alarm service with default fallback. | Build passes. | Ringtone selection and looping playback **not device-tested**. |
+| 10 | Whole-app UI/UX redesign | Theme/typography, home, forms, settings, history, inventory, navigation, alarm, and dialogs updated. Supplied MediCare logo is included on Home and Settings; Settings includes “© 2026 MediCare · Created & Managed by Shrey Vyas.” | Final source compiles. | Final Home and Settings were visible on the Vivo. The full logo, patient-name save control, contact slots, explicit contact Save, and alarm controls were captured. The system contact picker opened and was canceled. Other screens and accessibility/large-font behavior remain unverified. |
+| 11 | Preserve existing functionality/data | Stable dose IDs, grouped schedules, explicit YES/NO path, retries, CameraX, MediaStore, Room, inventory, strips, and historical data paths retained. | Build, JVM suite, and instrumentation compilation pass. | Update install preserved app data and existing schedule. No photos or records were deleted. Full end-to-end historical workflows are **not device-tested** in this pass. |
+
+## SMS permission and device state
+
+The phone reported SMS capability and Android showed the runtime permission prompt. The prompt was accepted during the earlier check; a later attempt to restore the original denied permission state was rejected by the command approval gate. SEND_SMS therefore remained granted in the last observed phone state, while automatic SMS was off and no contacts were configured. No message was sent. The app must not be described as having verified SMS delivery.
+
+## Outstanding device limitations
+
+- Exact alarm permission was reported granted. Nevertheless, a snoozed alarm expected at the registered time did not produce a confirmed alert while the Vivo was asleep. Vivo/Funtouch background/auto-start behavior remains a device-specific limitation despite the receiver wake-lock improvement; the latest fix has not yet had a second locked-screen test.
+- The receiver wake-lock improvement is installed, but the final locked-screen snooze check could not be run after the command approval gate rejected the device command.
+- Camera/Gallery, as-needed inventory, History, ringtone playback, reset, contact selection, and SMS send/fallback were not exercised on the phone.
+- No automated instrumentation tests were run on the preserved phone installation.
+- The on-device isolated alarm test cleanup could not be confirmed after the command approval gate rejected the cleanup/test command. Settings now exposes “End outstanding alarm tests”, which removes only synthetic test rows and alarms.

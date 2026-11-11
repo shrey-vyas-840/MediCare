@@ -80,14 +80,25 @@ fun InventoryDashboardScreen(
                 }
             }
 
-            items(medications) { med ->
+            item { Text("Scheduled medicines", style = MaterialTheme.typography.titleLarge) }
+            items(medications.filter { it.frequency != com.medicare.app.data.models.Frequency.AS_NEEDED }) { med ->
                 InventoryCard(
                     medication = med,
+                    onUseOne = {},
+                    usage = emptyList(),
                     onReconcileClick = {
                         reconcilingMed = med
                         reconciliationInput = med.currentInventory.toString()
                     }
                 )
+            }
+            item { Text("As-needed medicines", style = MaterialTheme.typography.titleLarge) }
+            items(medications.filter { it.frequency == com.medicare.app.data.models.Frequency.AS_NEEDED }) { med ->
+                val usage by viewModel.observeUsage(med.id).collectAsState(initial = emptyList())
+                InventoryCard(medication = med, onUseOne = { viewModel.markOneTabletUsed(med.id) }, usage = usage.map { it.usedAt }, onReconcileClick = {
+                    reconcilingMed = med
+                    reconciliationInput = med.currentInventory.toString()
+                })
             }
         }
     }
@@ -132,6 +143,8 @@ fun InventoryDashboardScreen(
 @Composable
 fun InventoryCard(
     medication: Medication,
+    onUseOne: () -> Unit,
+    usage: List<Long>,
     onReconcileClick: () -> Unit
 ) {
     val isLowStock = medication.currentInventory <= medication.lowStockThreshold && medication.active
@@ -168,7 +181,13 @@ fun InventoryCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            StripVisualization(
+            if (medication.frequency == com.medicare.app.data.models.Frequency.AS_NEEDED) {
+                Text("${medication.currentInventory} tablets available", style = MaterialTheme.typography.titleMedium)
+                Button(onClick = onUseOne, enabled = medication.active && medication.currentInventory > 0, modifier = Modifier.fillMaxWidth()) {
+                    Text("Mark 1 Tablet Used")
+                }
+                if (usage.isNotEmpty()) Text("${usage.size} recorded use(s) · latest ${java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(usage.first()))}", style = MaterialTheme.typography.bodySmall)
+            } else StripVisualization(
                 rows = medication.stripRows,
                 columns = medication.stripColumns,
                 initialQuantity = medication.initialQuantity,

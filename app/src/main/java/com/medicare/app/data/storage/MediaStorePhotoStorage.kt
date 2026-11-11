@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.provider.MediaStore.MediaColumns
 import android.util.Log
 import java.io.File
 import java.io.IOException
@@ -104,5 +105,30 @@ class MediaStorePhotoStorage(private val context: Context) {
                 null
             }
         }
+    }
+
+    fun overwriteBitmap(uriString: String, bitmap: Bitmap): Boolean = try {
+        context.contentResolver.openOutputStream(Uri.parse(uriString), "wt")?.use { output ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 92, output)
+        } ?: false
+    } catch (error: Exception) {
+        Log.e(TAG, "Could not update MediCare photo proof at $uriString", error)
+        false
+    }
+
+    /** Deletes only MediCare album items owned by this package. Returns null if ownership cannot be checked safely. */
+    fun deleteOwnedGalleryPhotos(): Int? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val projection = arrayOf(MediaStore.Images.Media._ID)
+        val selection = "${MediaStore.Images.Media.RELATIVE_PATH}=? AND ${MediaColumns.OWNER_PACKAGE_NAME}=?"
+        val args = arrayOf("Pictures/$ALBUM_NAME/", context.packageName)
+        val resolver = context.contentResolver
+        val uris = mutableListOf<Uri>()
+        resolver.query(collection, projection, selection, args, null)?.use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            while (cursor.moveToNext()) uris += Uri.withAppendedPath(collection, cursor.getLong(idIndex).toString())
+        } ?: return null
+        return uris.sumOf { uri -> runCatching { resolver.delete(uri, null, null) }.getOrDefault(0) }
     }
 }

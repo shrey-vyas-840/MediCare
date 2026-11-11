@@ -1,6 +1,11 @@
-MediCare historical device evidence summary (Vivo V2029, Android 12)
-------------------------------------------------------------------
-- Historical device acceptance recorded a reminder alert, Gallery save, dose completion and inventory decrement, pill strip rendering, and navigation.
-- The historical run's original screenshots and device state are not included here. No medicine names, dose details, or patient photos are part of this summary.
-- Current build, install, migration-preservation, and UI visibility results are documented in TEST_REPORT.md and test-results.json.
-- Current screen capture: medicare-final-screen.png. The system notification shade obscured the app and the resulting capture is black; it does not prove visible UI acceptance.
+MediCare next-release evidence (Vivo V2029, Android 12 / API 31)
+================================================================
+
+- medicare-final-screen.png: final installed Home screen, showing the complete supplied logo and existing schedule.
+- medicare-settings-screen.png and medicare-settings-lower*.png: final Settings screens, including patient-name Save, logo, two contact slots, contact Save, permission status, alarm controls, and cleanup action. No contact was selected.
+- medicare-sms-permission.png: Android runtime SEND_SMS permission prompt from the permission grantability check.
+- medicare-contact-permission.png: Android READ_CONTACTS permission prompt. The system picker was subsequently opened and canceled without selecting a contact; no contact list or details were captured.
+- alarm_timing_measurements.txt: request, trigger, and observation timestamps from one-minute alarm and two consecutive five-minute snooze intervals. Second locked-screen delivery was not confirmed.
+- The black screenshot containing the personal lock-screen wallpaper was removed and is not part of the evidence.
+- No patient records, selected contacts, contact numbers, or Gallery photographs are included in evidence.
+- Latest APK was update-installed and launched; the final Home and Settings screens are captured.

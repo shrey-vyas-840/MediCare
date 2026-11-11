@@ -58,13 +58,15 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MediCareTheme {
+            val settingsViewModel: SettingsViewModel = viewModel()
+            val patientName by settingsViewModel.userName.collectAsState()
+            val darkMode by settingsViewModel.darkMode.collectAsState()
+            MediCareTheme(darkTheme = darkMode) {
                 var currentScreen by remember { mutableStateOf<Screen>(initialScreen) }
                 val medicationViewModel: MedicationViewModel = viewModel()
                 val sessionViewModel: SessionViewModel = viewModel()
                 val inventoryViewModel: InventoryViewModel = viewModel()
                 val historyViewModel: HistoryViewModel = viewModel()
-                val settingsViewModel: SettingsViewModel = viewModel()
 
                 val showBottomNav = currentScreen !is Screen.Camera && currentScreen !is Screen.AddEditMedication
 
@@ -115,6 +117,7 @@ class MainActivity : ComponentActivity() {
                         when (currentScreen) {
                             is Screen.Home -> HomeScreen(
                                 sessionViewModel = sessionViewModel,
+                                patientName = patientName,
                                 onNavigateToMedications = { currentScreen = Screen.MedicationList },
                                 onNavigateToSessions = { currentScreen = Screen.Sessions },
                                 onNavigateToInventory = { currentScreen = Screen.Inventory },

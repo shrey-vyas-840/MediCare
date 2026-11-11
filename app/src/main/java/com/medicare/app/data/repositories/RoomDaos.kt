@@ -9,6 +9,8 @@ import com.medicare.app.data.models.DoseEvent
 import com.medicare.app.data.models.DoseStatus
 import com.medicare.app.data.models.Medication
 import com.medicare.app.data.models.MedicineSession
+import com.medicare.app.data.models.EmergencyAlert
+import com.medicare.app.data.models.AsNeededUsage
 import com.medicare.app.data.models.SessionStatus
 import kotlinx.coroutines.flow.Flow
 
@@ -18,6 +20,8 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM medicines WHERE id = :id") suspend fun byId(id: String): Medication?
     @Upsert suspend fun upsert(medicine: Medication)
     @Upsert suspend fun upsertAll(medicines: List<Medication>)
+    @Query("DELETE FROM medicines") suspend fun deleteAll()
+    @Query("DELETE FROM medicines WHERE id = :id") suspend fun deleteById(id: String)
     @Query("UPDATE medicines SET active = 0 WHERE id = :id") suspend fun archive(id: String)
     @Query("UPDATE medicines SET currentInventory = MAX(0, currentInventory - :amount) WHERE id = :id") suspend fun decrement(id: String, amount: Int): Int
     @Query("UPDATE medicines SET currentInventory = :amount, manualAdjustments = :adjustments WHERE id = :id") suspend fun setInventory(id: String, amount: Int, adjustments: List<Long>): Int
@@ -31,6 +35,8 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM medicine_sessions WHERE scheduledDate = :date AND scheduledTime = :time LIMIT 1") suspend fun byOccurrence(date: String, time: String): MedicineSession?
     @Upsert suspend fun upsert(session: MedicineSession)
     @Upsert suspend fun upsertAll(sessions: List<MedicineSession>)
+    @Query("DELETE FROM medicine_sessions") suspend fun deleteAll()
+    @Query("DELETE FROM medicine_sessions WHERE sessionId = :id") suspend fun deleteById(id: String)
     @Query("UPDATE medicine_sessions SET status = :status, submittedCount = :submitted, totalMedicineCount = :total WHERE sessionId = :id") suspend fun updateSummary(id: String, status: SessionStatus, submitted: Int, total: Int)
 }
 
@@ -48,11 +54,29 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM dose_events WHERE medicineId = :medicineId AND status IN ('SCHEDULED','PENDING_VERIFICATION')") suspend fun pendingForMedicine(medicineId: String): List<DoseEvent>
     @Upsert suspend fun upsert(event: DoseEvent)
     @Upsert suspend fun upsertAll(events: List<DoseEvent>)
+    @Query("DELETE FROM dose_events") suspend fun deleteAll()
+    @Query("DELETE FROM dose_events WHERE eventId = :id") suspend fun deleteById(id: String)
     @Query("UPDATE dose_events SET photoPath = :uri, captureTime = :capturedAt, status = 'PENDING_VERIFICATION' WHERE eventId = :id AND status IN ('SCHEDULED','PENDING_VERIFICATION')") suspend fun savePhoto(id: String, uri: String, capturedAt: Long): Int
     @Query("UPDATE dose_events SET status = 'TAKEN', submissionTime = :confirmedAt, quantityRecorded = :quantity, userAcknowledged = 1, nextReminderAt = NULL WHERE eventId = :id AND status IN ('SCHEDULED','PENDING_VERIFICATION') AND photoPath IS NOT NULL") suspend fun complete(id: String, confirmedAt: Long, quantity: Int): Int
     @Query("UPDATE dose_events SET status = 'SCHEDULED', nextReminderAt = :retryAt WHERE eventId = :id AND status IN ('SCHEDULED','PENDING_VERIFICATION')") suspend fun retry(id: String, retryAt: Long): Int
+    @Query("UPDATE dose_events SET nextReminderAt = NULL WHERE eventId = :id AND status IN ('SCHEDULED','PENDING_VERIFICATION')") suspend fun clearRetry(id: String): Int
     @Query("UPDATE dose_events SET status = 'CANCELLED', nextReminderAt = NULL WHERE eventId = :id AND status IN ('SCHEDULED','PENDING_VERIFICATION')") suspend fun cancelPending(id: String): Int
     @Query("UPDATE dose_events SET status = 'SCHEDULED', nextReminderAt = NULL WHERE eventId = :id AND status = 'CANCELLED'") suspend fun reactivate(id: String): Int
     @Query("UPDATE dose_events SET status = :status, quantityRecorded = :quantity, userAcknowledged = :acknowledged WHERE eventId = :id AND status IN ('SCHEDULED','PENDING_VERIFICATION')") suspend fun setStatus(id: String, status: DoseStatus, quantity: Int?, acknowledged: Boolean): Int
     @Query("UPDATE medicine_sessions SET status = 'PENDING' WHERE sessionId = :sessionId") suspend fun resetSession(sessionId: String)
+}
+
+@Dao interface EmergencyAlertDao {
+    @Query("SELECT * FROM emergency_alerts ORDER BY checkedAt DESC") fun observeAll(): Flow<List<EmergencyAlert>>
+    @Query("SELECT * FROM emergency_alerts WHERE sessionId = :sessionId") suspend fun forSession(sessionId: String): List<EmergencyAlert>
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertIfNew(alert: EmergencyAlert): Long
+    @Query("UPDATE emergency_alerts SET outcome = :outcome, sentAt = :sentAt WHERE id = :id") suspend fun updateOutcome(id: String, outcome: String, sentAt: Long?)
+    @Query("DELETE FROM emergency_alerts") suspend fun deleteAll()
+}
+
+@Dao interface AsNeededUsageDao {
+    @Query("SELECT * FROM as_needed_usage ORDER BY usedAt DESC") suspend fun all(): List<AsNeededUsage>
+    @Query("SELECT * FROM as_needed_usage WHERE medicineId = :medicineId ORDER BY usedAt DESC") fun observeMedicine(medicineId: String): Flow<List<AsNeededUsage>>
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insert(usage: AsNeededUsage)
+    @Query("DELETE FROM as_needed_usage") suspend fun deleteAll()
 }

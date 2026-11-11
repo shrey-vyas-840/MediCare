@@ -4,8 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 object WatermarkUtils {
@@ -15,17 +13,14 @@ object WatermarkUtils {
         scheduledTime: String,
         captureTimeMillis: Long,
         submissionTimeMillis: Long?,
-        dateStr: String
+        dateStr: String,
+        patientName: String = "Patient"
     ): Bitmap {
         // Create mutable copy of original bitmap (keeping original unchanged)
         val watermarked = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(watermarked)
         val width = watermarked.width
         val height = watermarked.height
-
-        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        val captureStr = timeFormat.format(Date(captureTimeMillis))
-        val submissionStr = submissionTimeMillis?.let { timeFormat.format(Date(it)) } ?: "Pending patient confirmation"
 
         val paint = Paint().apply {
             color = Color.WHITE
@@ -39,16 +34,11 @@ object WatermarkUtils {
             style = Paint.Style.FILL
         }
 
-        val lines = listOf(
-            "MediCare Dose Photo",
-            "Medicine: $medicineName",
-            "Scheduled: $scheduledTime on $dateStr",
-            "Captured: $captureStr",
-            "Confirmation: $submissionStr"
-        )
+        val lines = PhotoProofFormatter.lines(patientName, medicineName, dateStr, scheduledTime, captureTimeMillis, submissionTimeMillis)
+            .flatMap { line -> wrapLine(line, paint, (width - 2 * (width * 0.025f)).coerceAtLeast(80f)) }
 
         val lineHeight = paint.textSize * 1.4f
-        val padding = lineHeight * 0.6f
+        val padding = (width * 0.025f).coerceAtLeast(12f)
         val boxHeight = (lines.size * lineHeight) + (padding * 2)
         val boxWidth = width.toFloat()
 
@@ -66,5 +56,21 @@ object WatermarkUtils {
         }
 
         return watermarked
+    }
+
+    private fun wrapLine(value: String, paint: Paint, maxWidth: Float): List<String> {
+        if (paint.measureText(value) <= maxWidth) return listOf(value)
+        val words = value.split(' ')
+        val result = mutableListOf<String>()
+        var current = ""
+        for (word in words) {
+            val next = if (current.isEmpty()) word else "$current $word"
+            if (current.isNotEmpty() && paint.measureText(next) > maxWidth) {
+                result += current
+                current = word
+            } else current = next
+        }
+        if (current.isNotEmpty()) result += current
+        return result
     }
 }

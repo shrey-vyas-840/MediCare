@@ -14,7 +14,11 @@ import com.medicare.app.data.models.Frequency
 import com.medicare.app.data.models.Medication
 import com.medicare.app.data.models.MedicineSession
 import com.medicare.app.data.models.SessionStatus
+import com.medicare.app.data.models.EmergencyAlert
+import com.medicare.app.data.models.AsNeededUsage
 import com.medicare.app.data.repositories.DoseDao
+import com.medicare.app.data.repositories.EmergencyAlertDao
+import com.medicare.app.data.repositories.AsNeededUsageDao
 import com.medicare.app.data.repositories.MedicationDao
 import com.medicare.app.data.repositories.SessionDao
 import kotlinx.coroutines.runBlocking
@@ -38,18 +42,31 @@ class RoomConverters {
     @TypeConverter @JvmName("decodeLongList") fun decodeLongs(value: String): List<Long> = value.split(',').mapNotNull { it.toLongOrNull() }
 }
 
-@Database(entities = [Medication::class, MedicineSession::class, DoseEvent::class], version = 1, exportSchema = true)
+@Database(entities = [Medication::class, MedicineSession::class, DoseEvent::class, EmergencyAlert::class, AsNeededUsage::class], version = 2, exportSchema = true)
 @TypeConverters(RoomConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun medications(): MedicationDao
     abstract fun sessions(): SessionDao
     abstract fun doses(): DoseDao
+    abstract fun emergencyAlerts(): EmergencyAlertDao
+    abstract fun asNeededUsage(): AsNeededUsageDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "medicare.db")
+                .addMigrations(MIGRATION_1_2)
                 .build().also { instance = it }
+        }
+
+        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS emergency_alerts (id TEXT NOT NULL, sessionId TEXT NOT NULL, recipient TEXT NOT NULL, message TEXT NOT NULL, checkedAt INTEGER NOT NULL, sentAt INTEGER, outcome TEXT NOT NULL, PRIMARY KEY(id))")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_emergency_alerts_sessionId_recipient ON emergency_alerts(sessionId, recipient)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS as_needed_usage (id TEXT NOT NULL, medicineId TEXT NOT NULL, quantity INTEGER NOT NULL, usedAt INTEGER NOT NULL, PRIMARY KEY(id), FOREIGN KEY(medicineId) REFERENCES medicines(id) ON UPDATE NO ACTION ON DELETE NO ACTION)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_as_needed_usage_medicineId ON as_needed_usage(medicineId)")
+                db.execSQL("UPDATE medicines SET frequency = 'DAILY' WHERE frequency = 'CUSTOM'")
+            }
         }
     }
 }
@@ -72,7 +89,7 @@ class LegacyDataImporter(private val db: AppDatabase, private val filesDir: File
         val meds = storage.load<List<Medication>>("medications.json", emptyList())
         val oldSessions = storage.load<List<MedicineSession>>("medicine_sessions.json", emptyList())
         val oldDoses = storage.load<List<DoseEvent>>("dose_events.json", emptyList())
-        val validMeds = meds.distinctBy { it.id }
+        val validMeds = meds.distinctBy { it.id }.map { if (it.frequency == Frequency.CUSTOM) it.copy(frequency = Frequency.DAILY) else it }
         val medIds = validMeds.map { it.id }.toSet()
         val validDosesById = oldDoses.filter { it.medicineId in medIds }.distinctBy { it.eventId }
         val validDoses = validDosesById.groupBy { Triple(it.medicineId, it.scheduledDate, it.scheduledTime) }

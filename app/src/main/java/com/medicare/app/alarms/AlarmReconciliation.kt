@@ -24,7 +24,8 @@ object AlarmReconciliation {
                 val sessions = sessionRepository.getSessionsForDate(date)
                 for (session in sessions) {
                     AlarmScheduler.cancelAlarm(context, session.sessionId) // cancel pre-dose-ID alarms from older builds
-                    sessionRepository.getDoseEventsForSession(session.sessionId).forEach { dose ->
+                    val sessionDoses = sessionRepository.getDoseEventsForSession(session.sessionId)
+                    sessionDoses.forEach { dose ->
                         val activeMedicine = medicationRepository.getMedicationById(dose.medicineId)?.active == true
                         if (!activeMedicine || dose.status.name !in setOf("SCHEDULED", "PENDING_VERIFICATION")) {
                             AlarmScheduler.cancelDoseAlarms(context, dose.eventId)
@@ -35,6 +36,9 @@ object AlarmReconciliation {
                             AlarmScheduler.scheduleDoseAlarm(context, dose, kind, at)
                         }
                     }
+                    if (sessionDoses.any { it.status.name in setOf("SCHEDULED", "PENDING_VERIFICATION") }) {
+                        EmergencyCheckScheduler.schedule(context, session)
+                    } else EmergencyCheckScheduler.cancel(context, session.sessionId)
                 }
             }
         }

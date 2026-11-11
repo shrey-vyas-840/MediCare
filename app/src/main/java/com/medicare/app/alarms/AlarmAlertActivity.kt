@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.medicare.app.MainActivity
 import com.medicare.app.data.models.DoseStatus
 import com.medicare.app.data.storage.AppDatabase
+import com.medicare.app.alarms.AlarmTiming
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,6 +48,7 @@ class AlarmAlertActivity : ComponentActivity() {
         val doseId = intent.getStringExtra(EXTRA_DOSE_ID) ?: ""
         val medName = intent.getStringExtra(EXTRA_MEDICATION_NAME) ?: "Scheduled Medication"
         val scheduledTime = intent.getStringExtra(EXTRA_SCHEDULED_TIME) ?: "08:00"
+        val patientName = intent.getStringExtra(AlarmRingService.EXTRA_PATIENT_NAME).orEmpty().ifBlank { "Patient" }
 
         setContent {
             MediCareTheme {
@@ -62,7 +64,7 @@ class AlarmAlertActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = "⏰ TIME TO TAKE YOUR MEDICINE",
+                            text = "$patientName · TIME TO TAKE YOUR MEDICINE",
                             style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             textAlign = TextAlign.Center
@@ -113,9 +115,9 @@ class AlarmAlertActivity : ComponentActivity() {
                                     CoroutineScope(Dispatchers.Main).launch {
                                         val db = AppDatabase.get(applicationContext)
                                         val dose = db.doses().byId(doseId)
-                                        val retryAt = System.currentTimeMillis() + 5 * 60_000L
+                                        val retryAt = AlarmTiming.snoozeTriggerAt(System.currentTimeMillis())
                                         if (dose != null && db.doses().retry(doseId, retryAt) == 1) {
-                                            AlarmScheduler.scheduleDoseAlarm(applicationContext, dose, AlarmScheduler.AlarmKind.SNOOZE, retryAt)
+                                            AlarmScheduler.scheduleDoseAlarm(applicationContext, dose.copy(nextReminderAt = retryAt), AlarmScheduler.AlarmKind.SNOOZE, retryAt)
                                         }
                                         finish()
                                     }
@@ -127,6 +129,17 @@ class AlarmAlertActivity : ComponentActivity() {
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onErrorContainer)
                         ) {
                             Text("SNOOZE 5 MINUTES", style = MaterialTheme.typography.titleMedium)
+                        }
+
+                        if (AlarmTestManager.isTestDose(doseId)) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            TextButton(onClick = {
+                                AlarmRingService.stop(applicationContext)
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    AlarmTestManager.cleanup(applicationContext, doseId)
+                                    runOnUiThread { finish() }
+                                }
+                            }) { Text("END ALARM TEST") }
                         }
                     }
                 }

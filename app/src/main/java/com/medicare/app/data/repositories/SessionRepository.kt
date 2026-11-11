@@ -5,6 +5,9 @@ import com.medicare.app.data.models.DoseStatus
 import com.medicare.app.data.models.Medication
 import com.medicare.app.data.models.MedicineSession
 import com.medicare.app.data.models.SessionStatus
+import com.medicare.app.data.models.Frequency
+import com.medicare.app.data.models.AsNeededUsage
+import java.util.UUID
 import androidx.room.withTransaction
 import com.medicare.app.data.storage.AppDatabase
 import kotlinx.coroutines.flow.Flow
@@ -20,7 +23,8 @@ class SessionRepository(private val db: AppDatabase) {
     suspend fun generateSessionsForDate(date: String, medications: List<Medication>) {
         val timeToMeds = sortedMapOf<String, MutableList<Medication>>()
         for (med in medications) {
-            if (!med.active) continue
+            if (!med.active || med.frequency == Frequency.AS_NEEDED) continue
+            if (med.frequency == Frequency.WEEKLY && java.time.Instant.ofEpochMilli(med.startDate).atZone(java.time.ZoneId.systemDefault()).dayOfWeek != java.time.LocalDate.parse(date).dayOfWeek) continue
             for (time in med.times.distinct()) {
                 timeToMeds.getOrPut(time) { mutableListOf() }.add(med)
             }
@@ -63,6 +67,15 @@ class SessionRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun recordAsNeededUse(medicineId: String, quantity: Int = 1): Boolean = db.withTransaction {
+        require(quantity > 0)
+        val med = db.medications().byId(medicineId) ?: return@withTransaction false
+        if (!med.active || med.frequency != Frequency.AS_NEEDED || med.currentInventory < quantity) return@withTransaction false
+        if (db.medications().decrement(medicineId, quantity) != 1) return@withTransaction false
+        db.asNeededUsage().insert(AsNeededUsage(UUID.randomUUID().toString(), medicineId, quantity, System.currentTimeMillis()))
+        true
+    }
+
     suspend fun updateDoseEventStatus(
         eventId: String,
         status: DoseStatus,
@@ -84,13 +97,13 @@ class SessionRepository(private val db: AppDatabase) {
 
     suspend fun saveCapturedPhoto(eventId: String, uri: String, capturedAt: Long): Boolean = db.doses().savePhoto(eventId, uri, capturedAt) == 1
 
-    suspend fun completeDose(eventId: String, uri: String, capturedAt: Long, quantity: Int): Boolean = db.withTransaction {
+    suspend fun completeDose(eventId: String, uri: String, capturedAt: Long, quantity: Int, confirmedAt: Long = System.currentTimeMillis()): Boolean = db.withTransaction {
         require(quantity > 0)
         val event = db.doses().byId(eventId) ?: return@withTransaction false
         if (event.status == DoseStatus.TAKEN || event.status == DoseStatus.CANCELLED) return@withTransaction false
         if (event.photoPath != uri || event.captureTime != capturedAt) return@withTransaction false
         val medicine = db.medications().byId(event.medicineId) ?: return@withTransaction false
-        if (db.doses().complete(eventId, System.currentTimeMillis(), quantity) != 1) return@withTransaction false
+        if (db.doses().complete(eventId, confirmedAt, quantity) != 1) return@withTransaction false
         db.medications().decrement(medicine.id, quantity)
         refreshSession(event.sessionId)
         true

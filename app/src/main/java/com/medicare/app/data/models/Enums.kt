@@ -7,6 +7,7 @@ enum class Frequency {
     DAILY,
     WEEKLY,
     AS_NEEDED,
+    @Deprecated("Legacy records are migrated to Daily while preserving their times")
     CUSTOM
 }
 

@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.medicare.app.alarms.AlarmScheduler
+import com.medicare.app.alarms.AlarmTiming
 import com.medicare.app.data.models.DoseEvent
 import com.medicare.app.data.models.DoseStatus
 import com.medicare.app.data.models.MedicineSession
@@ -75,7 +76,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun snoozeSession(context: Context, session: MedicineSession) {
         viewModelScope.launch {
             sessionRepository.nextOutstanding(session.sessionId)?.let { event ->
-                AlarmScheduler.scheduleDoseAlarm(context, event, AlarmScheduler.AlarmKind.SNOOZE, System.currentTimeMillis() + 5 * 60_000L)
+                val scheduledAt = System.currentTimeMillis()
+                val triggerAt = AlarmTiming.snoozeTriggerAt(scheduledAt)
+                if (sessionRepository.scheduleRetry(event.eventId, triggerAt)) {
+                    AlarmScheduler.scheduleDoseAlarm(context, event.copy(nextReminderAt = triggerAt), AlarmScheduler.AlarmKind.SNOOZE, triggerAt)
+                }
             }
         }
     }

@@ -1,0 +1,25 @@
+Device: Vivo V2029, Android 12 / API 31
+Measurements from production dose-alarm, alert, and snooze path using isolated synthetic test dose.
+No real medicine record, dose record, or photo was used for the alarm test.
+
+Initial one-minute alarm
+- Test button tap/request observed: 1794394230997 ms
+- Scheduling completed/clock read: 1794394234344 ms
+- Expected trigger from schedule completion + 60,000 ms: 1794394294344 ms
+- AlarmAlertActivity visibly foreground at observation: 1794394305705 ms
+- Observed delivery delay vs calculated trigger: 11,361 ms
+
+First five-minute snooze
+- Snooze tap: 1794394330044 ms
+- Registered exact trigger from AlarmManager dump: 1794394630294 ms
+- Tap-to-trigger interval: 300,250 ms
+- AlarmAlertActivity visibly foreground at observation: 1794394658665 ms
+- Observed delivery delay vs registered trigger: 28,371 ms
+
+Second consecutive five-minute snooze
+- Snooze tap: 1794394698478 ms
+- Registered exact trigger from AlarmManager dump: 2026-11-11 16:33:18.737 device local time
+- Tap-to-trigger interval from contemporaneous clock/dump: 300,259 ms
+- Check after expected trigger: 1794395020300 ms
+- Device was asleep; after waking it remained on the lock screen. No MediCare alarm activity or notification was confirmed.
+- Result: interval calculation and identity replacement observed; background delivery while asleep failed this check. The later receiver wake-lock change is not covered by this earlier device run.

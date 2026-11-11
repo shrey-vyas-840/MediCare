@@ -1,6 +1,7 @@
 package com.medicare.app.ui.session
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -13,12 +14,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     sessionViewModel: SessionViewModel,
+    patientName: String = "Patient",
     onNavigateToMedications: () -> Unit,
     onNavigateToSessions: () -> Unit,
     onNavigateToInventory: () -> Unit,
@@ -49,6 +53,15 @@ fun HomeScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Image(
+                    painter = painterResource(com.medicare.app.R.drawable.medicare_logo),
+                    contentDescription = "MediCare — Never Miss Your Medicine",
+                    modifier = Modifier.fillMaxWidth().aspectRatio(1.5f).padding(6.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+
             // Welcome Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -56,7 +69,7 @@ fun HomeScreen(
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        text = "Welcome Back, Patient",
+                        text = "Welcome back, ${patientName.ifBlank { "Patient" }}",
                         style = MaterialTheme.typography.headlineSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
