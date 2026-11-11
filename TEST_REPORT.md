@@ -15,6 +15,10 @@ Package: `com.medicare.app`, version `1.0` (version code `1`)
 - Existing Room import receipt and original JSON backups were present before this pass. The app launched with the prior schedule displayed. No app reset, Gallery deletion, medicine editing, dose confirmation, contact selection, or SMS send was performed.
 - The previously observed Gallery count was 12 photos. No Gallery file operation was run. We did not query or open the user's contact list.
 
+## GitHub
+
+The release implementation was committed as `d99adba` and pushed to `origin/master` at `https://github.com/shrey-vyas-840/MediCare.git`. The previous history was preserved; no force push or branch rewrite was used.
+
 ## Eleven requirements
 
 | # | Requirement | Implementation | Build/unit evidence | Vivo device result |

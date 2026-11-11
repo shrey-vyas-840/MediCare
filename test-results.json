@@ -77,7 +77,7 @@
   },
   "git": {
     "repository": "https://github.com/shrey-vyas-840/MediCare.git",
-    "commit": "PENDING",
-    "push": "PENDING"
+    "release_implementation_commit": "d99adba",
+    "push": "SUCCESS_TO_ORIGIN_MASTER"
   }
 }
