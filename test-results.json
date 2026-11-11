@@ -81,6 +81,7 @@
   "git": {
     "repository": "https://github.com/shrey-vyas-840/MediCare.git",
     "release_implementation_commit": "d99adba",
+    "version_1_1_ui_commit": "7812c1f",
     "push": "SUCCESS_TO_ORIGIN_MASTER"
   }
 }

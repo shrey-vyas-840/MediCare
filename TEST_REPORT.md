@@ -20,7 +20,7 @@ Package: `com.medicare.app`, version `1.1` (version code `2`)
 
 ## GitHub
 
-The release implementation was committed as `d99adba` and pushed to `origin/master` at `https://github.com/shrey-vyas-840/MediCare.git`. The previous history was preserved; no force push or branch rewrite was used. The version 1.1 UI/version milestone is built and installed; its commit and push are pending.
+The prior release implementation is `d99adba`. Version 1.1 is committed as `7812c1f` and pushed to `origin/master` at `https://github.com/shrey-vyas-840/MediCare.git`. The previous history was preserved; no force push or branch rewrite was used.
 
 ## Eleven requirements
 
