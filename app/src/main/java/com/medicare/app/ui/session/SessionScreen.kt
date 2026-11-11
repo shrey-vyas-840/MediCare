@@ -9,6 +9,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.HourglassEmpty
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,8 +18,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.medicare.app.data.models.DoseStatus
 import com.medicare.app.data.models.MedicineSession
-import com.medicare.app.data.repositories.MedicationRepository
-import com.medicare.app.data.storage.JsonStorage
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -38,6 +37,11 @@ fun SessionScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Today's Medicines ($selectedDate)") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
             )
         }
@@ -103,12 +107,11 @@ fun SessionCard(
     onSnooze: () -> Unit,
     onVerifyDose: (String, String) -> Unit
 ) {
-    val context = LocalContext.current
-    val doseEvents = remember(session.sessionId) { viewModel.getDoseEvents(session.sessionId) }
-    val medicationRepository = remember { MedicationRepository(JsonStorage(context)) }
-    val medications = remember { medicationRepository.getMedications().associateBy { it.id } }
+    val doseEvents by viewModel.observeDoseEvents(session.sessionId).collectAsState(initial = emptyList())
+    val medicationList by viewModel.medications.collectAsState()
+    val medications = remember(medicationList) { medicationList.associateBy { it.id } }
 
-    val completedCount = doseEvents.count { it.status == DoseStatus.TAKEN || it.status == DoseStatus.SKIPPED }
+    val completedCount = doseEvents.count { it.status == DoseStatus.TAKEN }
     val totalCount = doseEvents.size
 
     Card(
@@ -178,7 +181,8 @@ fun SessionCard(
             doseEvents.forEach { event ->
                 val med = medications[event.medicineId]
                 val medName = med?.name ?: "Medicine"
-                val isSubmitted = event.status == DoseStatus.TAKEN || event.status == DoseStatus.SKIPPED
+                val isSubmitted = event.status == DoseStatus.TAKEN
+                val isPending = event.status == DoseStatus.SCHEDULED || event.status == DoseStatus.PENDING_VERIFICATION
 
                 Column(
                     modifier = Modifier
@@ -197,7 +201,7 @@ fun SessionCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (isSubmitted) "DONE FOR TODAY" else "Not taken yet",
+                        text = when { isSubmitted -> "DONE FOR TODAY"; isPending -> "Not taken yet"; else -> event.status.name },
                             style = MaterialTheme.typography.labelMedium,
                             color = if (isSubmitted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                         )
@@ -218,7 +222,7 @@ fun SessionCard(
                                 Text("Next dose: $nextDoseText", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                             }
                         }
-                    } else {
+                    } else if (isPending) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),

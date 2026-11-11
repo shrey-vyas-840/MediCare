@@ -14,7 +14,7 @@ object WatermarkUtils {
         medicineName: String,
         scheduledTime: String,
         captureTimeMillis: Long,
-        submissionTimeMillis: Long,
+        submissionTimeMillis: Long?,
         dateStr: String
     ): Bitmap {
         // Create mutable copy of original bitmap (keeping original unchanged)
@@ -25,7 +25,7 @@ object WatermarkUtils {
 
         val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
         val captureStr = timeFormat.format(Date(captureTimeMillis))
-        val submissionStr = timeFormat.format(Date(submissionTimeMillis))
+        val submissionStr = submissionTimeMillis?.let { timeFormat.format(Date(it)) } ?: "Pending patient confirmation"
 
         val paint = Paint().apply {
             color = Color.WHITE
@@ -40,11 +40,11 @@ object WatermarkUtils {
         }
 
         val lines = listOf(
-            "MediCare Verified Dose",
+            "MediCare Dose Photo",
             "Medicine: $medicineName",
             "Scheduled: $scheduledTime on $dateStr",
             "Captured: $captureStr",
-            "Submitted: $submissionStr"
+            "Confirmation: $submissionStr"
         )
 
         val lineHeight = paint.textSize * 1.4f

@@ -11,20 +11,22 @@ import com.medicare.app.data.models.DoseStatus
 import com.medicare.app.data.models.Medication
 import com.medicare.app.data.repositories.MedicationRepository
 import com.medicare.app.data.repositories.SessionRepository
-import com.medicare.app.data.storage.JsonStorage
+import com.medicare.app.data.storage.AppDatabase
 import com.medicare.app.data.storage.MediaStorePhotoStorage
 import com.medicare.app.util.WatermarkUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 sealed interface CameraUiState {
     data object Loading : CameraUiState
     data object LivePreview : CameraUiState
-    data class CapturedPreview(val bitmap: Bitmap, val tempPath: String) : CameraUiState
-    data class Confirming(val bitmap: Bitmap, val tempPath: String) : CameraUiState
+    data class CapturedPreview(val bitmap: Bitmap, val photoUri: String, val fileName: String) : CameraUiState
+    data class Confirming(val bitmap: Bitmap, val photoUri: String, val fileName: String) : CameraUiState
     data class Submitted(val confirmationTimestamp: Long, val galleryPath: String, val fileName: String) : CameraUiState
     data class Error(val message: String) : CameraUiState
 }
@@ -35,10 +37,11 @@ class CameraViewModel(
     private val sessionId: String
 ) : AndroidViewModel(application) {
 
-    private val jsonStorage = JsonStorage(application)
-    private val sessionRepository = SessionRepository(jsonStorage)
-    private val medicationRepository = MedicationRepository(jsonStorage)
+    private val database = AppDatabase.get(application)
+    private val sessionRepository = SessionRepository(database)
+    private val medicationRepository = MedicationRepository(database)
     private val mediaStoreStorage = MediaStorePhotoStorage(application)
+    private val submissionMutex = Mutex()
 
     private val _uiState = MutableStateFlow<CameraUiState>(CameraUiState.Loading)
     val uiState: StateFlow<CameraUiState> = _uiState.asStateFlow()
@@ -73,93 +76,80 @@ class CameraViewModel(
     fun onPhotoCaptured(bitmap: Bitmap, tempPath: String) {
         captureTimeMillis = System.currentTimeMillis()
         Log.d("MEDICARE_CAMERA", "Photo captured successfully at timestamp $captureTimeMillis. Temp path: $tempPath")
-        _uiState.value = CameraUiState.CapturedPreview(bitmap, tempPath)
+        viewModelScope.launch {
+            val event = doseEvent ?: return@launch
+            val med = medication ?: return@launch
+            val marked = WatermarkUtils.applyWatermark(bitmap, med.name, event.scheduledTime, captureTimeMillis, null, event.scheduledDate)
+            val (uri, name) = mediaStoreStorage.saveBitmapToGallery(marked, med.name)
+            if (uri == null || name == null) {
+                _uiState.value = CameraUiState.Error("Could not save the photo to Pictures/MediCare. The dose remains pending.")
+                return@launch
+            }
+            if (!sessionRepository.saveCapturedPhoto(event.eventId, uri, captureTimeMillis)) {
+                _uiState.value = CameraUiState.Error("This dose is no longer pending. The photo was saved, but the dose was not completed.")
+                return@launch
+            }
+            runCatching { File(tempPath).delete() }
+            _uiState.value = CameraUiState.CapturedPreview(mediaStoreStorage.loadBitmap(uri) ?: marked, uri, name)
+        }
     }
 
-    fun retakePhoto(tempPath: String?) {
-        tempPath?.let { File(it).delete() }
-        Log.d("MEDICARE_CAMERA", "Retaking photo, deleted temp path: $tempPath")
+    fun retakePhoto(photoUri: String?) {
+        Log.d("MEDICARE_CAMERA", "Retaking photo; saved Gallery image is retained: $photoUri")
         _uiState.value = CameraUiState.LivePreview
     }
 
-    fun requestConfirmation(bitmap: Bitmap, tempPath: String) {
+    fun requestConfirmation(bitmap: Bitmap, photoUri: String, fileName: String) {
         Log.d("MEDICARE_CAMERA", "Requesting confirmation for captured photo")
-        _uiState.value = CameraUiState.Confirming(bitmap, tempPath)
+        _uiState.value = CameraUiState.Confirming(bitmap, photoUri, fileName)
     }
 
-    fun dismissConfirmation(bitmap: Bitmap, tempPath: String) {
+    fun dismissConfirmation(bitmap: Bitmap, photoUri: String, fileName: String) {
         Log.d("MEDICARE_CAMERA", "Confirmation dismissed (No selected). Returning to captured preview.")
         doseEvent?.let { event ->
-            AlarmScheduler.scheduleSnoozeById(getApplication(), event.sessionId, event.scheduledTime, 5)
+            viewModelScope.launch {
+                val retryAt = System.currentTimeMillis() + 5 * 60_000L
+                if (sessionRepository.scheduleRetry(event.eventId, retryAt)) {
+                    AlarmScheduler.scheduleDoseAlarm(getApplication(), event, AlarmScheduler.AlarmKind.RETRY, retryAt)
+                }
+            }
             Log.d("MEDICARE_SCHEDULER", "User selected NO / dismissed confirmation. Scheduled 5-min repeat reminder.")
         }
-        _uiState.value = CameraUiState.CapturedPreview(bitmap, tempPath)
+        _uiState.value = CameraUiState.CapturedPreview(bitmap, photoUri, fileName)
     }
 
-    fun confirmAndSubmit(tempPath: String, originalBitmap: Bitmap, onFinished: () -> Unit) {
+    fun confirmAndSubmit(photoUri: String, fileName: String) {
         viewModelScope.launch {
+            submissionMutex.withLock {
+            if (_uiState.value is CameraUiState.Submitted) return@withLock
             val event = doseEvent ?: return@launch
             val med = medication ?: return@launch
             val submissionTime = System.currentTimeMillis()
 
             Log.d("MEDICARE_SUBMISSION", "Starting confirmation and submission for medication: ${med.name}, doseEventId=${event.eventId}")
-
-            // 1. Apply watermark
-            val watermarkedBitmap = WatermarkUtils.applyWatermark(
-                originalBitmap = originalBitmap,
-                medicineName = med.name,
-                scheduledTime = event.scheduledTime,
-                captureTimeMillis = captureTimeMillis,
-                submissionTimeMillis = submissionTime,
-                dateStr = event.scheduledDate
-            )
-
-            // 2. Save watermarked photo to MediaStore Gallery (Pictures/MediCare/)
-            val (mediaStoreUri, fileName) = mediaStoreStorage.saveBitmapToGallery(watermarkedBitmap, med.name)
-            if (mediaStoreUri == null || fileName == null) {
-                Log.e("MEDICARE_PHOTO_SAVE", "Failed to save photo to MediaStore Gallery")
-                _uiState.value = CameraUiState.Error("Failed to save photo to shared Gallery storage")
+            if (!sessionRepository.completeDose(event.eventId, photoUri, captureTimeMillis, event.quantityRecorded ?: 1)) {
+                _uiState.value = CameraUiState.Error("This dose changed before confirmation. It was not marked complete.")
                 return@launch
             }
-            Log.d("MEDICARE_PHOTO_SAVE", "Successfully saved to MediaStore: uri=$mediaStoreUri, fileName=$fileName")
-
-            // Clean up temp file
-            try {
-                File(tempPath).delete()
-            } catch (_: Exception) {}
-
-            // 3. Commit dose record persistence
-            sessionRepository.updateDoseEventStatus(
-                eventId = event.eventId,
-                status = DoseStatus.TAKEN,
-                photoPath = mediaStoreUri,
-                quantityRecorded = 1,
-                userAcknowledged = true
-            )
-            Log.d("MEDICARE_SUBMISSION", "Updated dose event status to TAKEN with photoPath=$mediaStoreUri")
-
-            // 4. Update inventory exactly once
-            medicationRepository.decrementInventory(med.id, 1)
-            Log.d("MEDICARE_SESSION", "Decremented inventory for medication ${med.name}")
 
             // 5. Check if session is fully completed; if so, cancel alarm
-            val sessionEvents = sessionRepository.getDoseEventsForSession(event.sessionId)
-            val allTakenOrSkipped = sessionEvents.all { it.status == DoseStatus.TAKEN || it.status == DoseStatus.SKIPPED }
-            if (allTakenOrSkipped) {
-                AlarmScheduler.cancelAlarm(getApplication(), event.sessionId)
-                Log.d("MEDICARE_SCHEDULER", "All medicines in session ${event.sessionId} completed. Cancelled alarm.")
-            }
+            AlarmScheduler.cancelDoseAlarms(getApplication(), event.eventId)
+            Log.d("MEDICARE_SUBMISSION", "Dose ${event.eventId} completed and inventory deducted atomically")
 
-            _uiState.value = CameraUiState.Submitted(submissionTime, mediaStoreUri, fileName)
+            _uiState.value = CameraUiState.Submitted(submissionTime, photoUri, fileName)
+            }
         }
     }
 
     fun handleCameraExitWithoutSubmission() {
         viewModelScope.launch {
-            val event = doseEvent ?: return@launch
-            if (event.status == DoseStatus.SCHEDULED) {
-                AlarmScheduler.scheduleSnoozeById(getApplication(), event.sessionId, event.scheduledTime, 5)
-                Log.d("MEDICARE_SCHEDULER", "Camera closed without submission for session ${event.sessionId}. Scheduled 5-min repeat reminder.")
+            val event = sessionRepository.getDoseEvent(doseEventId) ?: return@launch
+            if (event.status == DoseStatus.SCHEDULED || event.status == DoseStatus.PENDING_VERIFICATION) {
+                val retryAt = System.currentTimeMillis() + 5 * 60_000L
+                if (sessionRepository.scheduleRetry(event.eventId, retryAt)) {
+                    AlarmScheduler.scheduleDoseAlarm(getApplication(), event, AlarmScheduler.AlarmKind.RETRY, retryAt)
+                    Log.d("MEDICARE_SCHEDULER", "Camera closed before confirmation. Scheduled retry for dose=${event.eventId}")
+                }
             }
         }
     }

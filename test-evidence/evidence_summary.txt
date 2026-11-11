@@ -1,9 +1,6 @@
-MediCare V2.1 Test Evidence Summary (Vivo Android 12 - eab1db0d)
-------------------------------------------------------------------------
-- Device: Vivo V2029 (Android 12, SDK 31)
-- Build: app-debug.apk
-- Alarm test: MED-01 scheduled via app form 1 min ahead -> audibly rang with loud alarm sound and full-screen alert activity (AlarmAlertActivity).
-- Gallery test: Photo captured and successfully saved to Pictures/MediCare/ with timestamped filename (Medicine_Paracetamol_20261110_140500.jpg). Visible in phone Gallery.
-- Submission test: Explicit YES confirmation successfully updated session to DONE FOR TODAY, recorded capture/confirmation timestamps, decremented inventory exactly once, and stopped future reminders.
-- Strip test: Dynamic pill strip visualization rendered exact row/column grids with distinct consumed vs remaining tablet colors.
-- Navigation test: Persistent bottom NavigationBar and restored Session header Back arrow allow seamless tab switching without app restarts or back-button lockups.
+MediCare historical device evidence summary (Vivo V2029, Android 12)
+------------------------------------------------------------------
+- Historical device acceptance recorded a reminder alert, Gallery save, dose completion and inventory decrement, pill strip rendering, and navigation.
+- The historical run's original screenshots and device state are not included here. No medicine names, dose details, or patient photos are part of this summary.
+- Current build, install, migration-preservation, and UI visibility results are documented in TEST_REPORT.md and test-results.json.
+- Current screen capture: medicare-final-screen.png. The system notification shade obscured the app and the resulting capture is black; it does not prove visible UI acceptance.

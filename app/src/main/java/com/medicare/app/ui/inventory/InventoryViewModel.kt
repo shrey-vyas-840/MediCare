@@ -5,15 +5,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.medicare.app.data.models.Medication
 import com.medicare.app.data.repositories.MedicationRepository
-import com.medicare.app.data.storage.JsonStorage
+import com.medicare.app.data.storage.AppDatabase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class InventoryViewModel(application: Application) : AndroidViewModel(application) {
-    private val jsonStorage = JsonStorage(application)
-    private val medicationRepository = MedicationRepository(jsonStorage)
+    private val medicationRepository = MedicationRepository(AppDatabase.get(application))
 
     val medications: StateFlow<List<Medication>> = medicationRepository.medicationsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

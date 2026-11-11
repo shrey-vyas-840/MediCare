@@ -23,11 +23,13 @@ class AlarmRingService : Service() {
         const val CHANNEL_ID = "alarm_ring_channel"
         const val NOTIFICATION_ID = 9999
         const val EXTRA_SESSION_ID = "extra_session_id"
+        const val EXTRA_DOSE_ID = "extra_dose_id"
         const val EXTRA_MEDICATION_NAME = "extra_medication_name"
         const val EXTRA_SCHEDULED_TIME = "extra_scheduled_time"
 
-        fun start(context: Context, sessionId: String, medicationName: String, scheduledTime: String) {
+        fun start(context: Context, doseId: String, sessionId: String, medicationName: String, scheduledTime: String) {
             val intent = Intent(context, AlarmRingService::class.java).apply {
+                putExtra(EXTRA_DOSE_ID, doseId)
                 putExtra(EXTRA_SESSION_ID, sessionId)
                 putExtra(EXTRA_MEDICATION_NAME, medicationName)
                 putExtra(EXTRA_SCHEDULED_TIME, scheduledTime)
@@ -60,6 +62,7 @@ class AlarmRingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val doseId = intent?.getStringExtra(EXTRA_DOSE_ID) ?: ""
         val sessionId = intent?.getStringExtra(EXTRA_SESSION_ID) ?: "session_unknown"
         val medName = intent?.getStringExtra(EXTRA_MEDICATION_NAME) ?: "Scheduled Medication"
         val scheduledTime = intent?.getStringExtra(EXTRA_SCHEDULED_TIME) ?: "08:00"
@@ -67,7 +70,7 @@ class AlarmRingService : Service() {
         Log.d(TAG, "AlarmRingService.onStartCommand: sessionId=$sessionId, medName=$medName, scheduledTime=$scheduledTime")
 
         createNotificationChannel()
-        val notification = buildNotification(sessionId, medName, scheduledTime)
+        val notification = buildNotification(doseId, sessionId, medName, scheduledTime)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
@@ -90,20 +93,15 @@ class AlarmRingService : Service() {
             ).apply {
                 description = "Active medication alarm ringing channel"
                 enableVibration(true)
-                setSound(
-                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
+                setSound(null, null)
             }
             notificationManager.createNotificationChannel(channel)
         }
     }
 
-    private fun buildNotification(sessionId: String, medName: String, scheduledTime: String): Notification {
+    private fun buildNotification(doseId: String, sessionId: String, medName: String, scheduledTime: String): Notification {
         val fullScreenIntent = Intent(this, AlarmAlertActivity::class.java).apply {
+            putExtra(AlarmAlertActivity.EXTRA_DOSE_ID, doseId)
             putExtra(AlarmAlertActivity.EXTRA_SESSION_ID, sessionId)
             putExtra(AlarmAlertActivity.EXTRA_MEDICATION_NAME, medName)
             putExtra(AlarmAlertActivity.EXTRA_SCHEDULED_TIME, scheduledTime)
@@ -111,7 +109,7 @@ class AlarmRingService : Service() {
         }
         val fullScreenPendingIntent = PendingIntent.getActivity(
             this,
-            sessionId.hashCode(),
+            doseId.hashCode(),
             fullScreenIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )

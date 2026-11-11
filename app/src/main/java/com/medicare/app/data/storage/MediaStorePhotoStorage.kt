@@ -13,6 +13,7 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 class MediaStorePhotoStorage(private val context: Context) {
     companion object {
@@ -21,9 +22,9 @@ class MediaStorePhotoStorage(private val context: Context) {
     }
 
     fun saveBitmapToGallery(bitmap: Bitmap, medicineName: String): Pair<String?, String?> {
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.getDefault()).format(Date())
         val sanitizedName = medicineName.replace(Regex("[^A-Za-z0-9_]"), "_")
-        val fileName = "Medicine_${sanitizedName}_${timeStamp}.jpg"
+        val fileName = "Medicine_${sanitizedName}_${timeStamp}_${UUID.randomUUID().toString().take(8)}.jpg"
 
         Log.d("MEDICARE_PHOTO_SAVE", "Attempting to save photo to Gallery Pictures/$ALBUM_NAME/$fileName")
 
@@ -54,7 +55,7 @@ class MediaStorePhotoStorage(private val context: Context) {
             }
 
             resolver.openOutputStream(imageUri)?.use { outputStream ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)) throw IOException("JPEG compression failed for $fileName")
             } ?: throw IOException("Failed to open output stream for URI: $imageUri")
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

@@ -212,9 +212,12 @@ fun PhotoViewerDialog(
     medicationName: String,
     onDismiss: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val bitmap = remember(photoPath) {
         try {
-            android.graphics.BitmapFactory.decodeFile(photoPath)
+            context.contentResolver.openInputStream(android.net.Uri.parse(photoPath))?.use { stream ->
+                android.graphics.BitmapFactory.decodeStream(stream)
+            } ?: android.graphics.BitmapFactory.decodeFile(photoPath)
         } catch (_: Exception) {
             null
         }

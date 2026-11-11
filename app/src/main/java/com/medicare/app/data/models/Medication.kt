@@ -1,10 +1,14 @@
 package com.medicare.app.data.models
 
 import kotlinx.serialization.Serializable
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import java.util.UUID
 
 @Serializable
+@Entity(tableName = "medicines")
 data class Medication(
+    @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val dosage: Double,

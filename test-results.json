@@ -1,58 +1,48 @@
 {
+  "date": "2026-11-11",
   "environment": {
     "device": "Vivo V2029",
-    "android_version": "12",
+    "android_version": "12 / API 31",
+    "device_id": "eab1db0d",
     "package": "com.medicare.app",
-    "device_id": "eab1db0d"
+    "version_name": "1.0",
+    "version_code": 1
   },
-  "summary": {
-    "total": 4,
-    "passed": 4,
-    "failed": 0,
-    "blocked": 0,
-    "not_tested": 0
+  "build": {
+    "unit_tests": "PASS_UP_TO_DATE",
+    "debug_apk": "PASS",
+    "installed_update": "PASS",
+    "activity_launch": "PASS",
+    "visible_ui": "BLOCKED_SYSTEM_NOTIFICATION_SHADE_AND_BLACK_CAPTURE"
+  },
+  "migration": {
+    "status": "PRESERVED_IMPORTED_WITH_REVIEW_ITEMS",
+    "medicines_imported": 1,
+    "medicines_source": 1,
+    "sessions_imported": 2,
+    "sessions_source": 2,
+    "unique_dose_occurrences_imported": 1,
+    "raw_dose_rows": 11,
+    "duplicate_occurrences_merged": 7,
+    "invalid_or_duplicate_dose_rows_skipped": 3,
+    "original_json_and_backups_present": true
   },
   "tests": [
-    {
-      "id": "TEST V2.4-001",
-      "area": "Architecture",
-      "description": "Authoritative Single Source of Truth & Deletion Cleanup",
-      "expected": "Deleting a medicine cleans up orphaned dose events and sessions",
-      "actual": "Orphaned events cleaned up successfully",
-      "status": "PASS",
-      "evidence": "MedicationRepository deleteMedication cleanup",
-      "defect_id": ""
-    },
-    {
-      "id": "TEST V2.4-002",
-      "area": "Submission",
-      "description": "Date-based immutable dose completion",
-      "expected": "Completed doses remain immutable and never revert to pending",
-      "actual": "Status preserved across reloads and restarts",
-      "status": "PASS",
-      "evidence": "SessionRepository generateSessionsForDate preservation",
-      "defect_id": ""
-    },
-    {
-      "id": "TEST V2.4-003",
-      "area": "Alarm",
-      "description": "Stale alarm integrity check",
-      "expected": "Alarm receiver verifies pending state before ringing and cancels completed alarms",
-      "actual": "Stale alarms successfully ignored and cancelled",
-      "status": "PASS",
-      "evidence": "AlarmReceiver pending check",
-      "defect_id": ""
-    },
-    {
-      "id": "TEST V2.4-004",
-      "area": "Navigation",
-      "description": "Direct alarm-to-camera navigation",
-      "expected": "Tapping Verify and Take on alarm screen launches camera directly",
-      "actual": "Direct camera navigation functional",
-      "status": "PASS",
-      "evidence": "AlarmAlertActivity & MainActivity intent handling",
-      "defect_id": ""
-    }
+    {"id": "jvm-unit-suite", "status": "PASS_UP_TO_DATE", "evidence": "Gradle testDebugUnitTest --offline task outcome"},
+    {"id": "debug-apk-build", "status": "PASS", "evidence": "Gradle assembleDebug --offline; app/build/outputs/apk/debug/app-debug.apk"},
+    {"id": "update-install", "status": "PASS", "evidence": "adb install -r; existing package data retained"},
+    {"id": "main-activity-launch", "status": "PASS", "evidence": "Activity resumed; no FATAL EXCEPTION in inspected logcat tail"},
+    {"id": "visible-ui", "status": "BLOCKED", "actual": "System notification shade remained focused over MediCare and screenshot was black", "evidence": "test-evidence/medicare-final-screen.png"},
+    {"id": "gallery-preservation", "status": "PASS", "actual": "12 files remain in Pictures/MediCare"},
+    {"id": "app-data-preservation", "status": "PASS", "actual": "Legacy JSON, backups, Room import receipt, and DataStore directory remain"},
+    {"id": "physical-instrumentation", "status": "NOT_RUN", "actual": "Not rerun because the instrumentation runner previously removed the installed app package on this device; historical artifacts record 7 passing tests"},
+    {"id": "alarm-camera-navigation-visual-workflows", "status": "NOT_VERIFIED"},
+    {"id": "legacy-dose-review", "status": "OPEN", "actual": "Three skipped rows remain in preserved JSON/backups for manual review"}
   ],
-  "open_issues": []
+  "apk": "D:/MediCare/app/build/outputs/apk/debug/app-debug.apk",
+  "open_issues": [
+    "Visible UI acceptance and physical reminder/camera/navigation workflows remain unverified.",
+    "Three legacy dose rows need review before any reconciliation.",
+    "The exact contents of the existing DataStore preference values were not inspected."
+  ]
 }

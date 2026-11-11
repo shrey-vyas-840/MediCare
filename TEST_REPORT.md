@@ -1,51 +1,23 @@
-# MediCare V2.4 – Formal End-to-End Test Report
+# MediCare test report
 
-## 1. Environment
-- **Device Manufacturer / Model**: Vivo (Model V2029)
-- **Android Version**: Android 12 (API 31)
-- **App Version / Build**: V2.4 Debug Build (`app-debug.apk`)
-- **Package Name**: `com.medicare.app`
-- **Build Date**: November 2026
-- **Test Date**: November 2026
-- **Device Connection Status**: Connected and authorized via ADB (`eab1db0d`)
+Date: 2026-11-11
+Device: Vivo V2029, Android 12 (API 31), ADB `eab1db0d`
+Package: `com.medicare.app`, version 1.0, version code 1
 
----
+## Current verification
 
-## 2. Test Cases
+- `assembleDebug --offline`: PASS. APK: `app/build/outputs/apk/debug/app-debug.apk`.
+- `testDebugUnitTest --offline`: PASS. Gradle reported the task up to date; existing generated test results are in `app/build/test-results/testDebugUnitTest/`.
+- Update install with `adb install -r`: PASS. Package data was retained.
+- `MainActivity` launch: PASS as an activity start and resumed activity; no `FATAL EXCEPTION` appeared in the inspected logcat tail. A visible app screen could not be verified: the phone had the system notification shade in focus over the app and the saved screenshot is black.
+- Existing app files remain, including original JSON, `.bak`, `.pre-room.bak`, Room import receipt, and DataStore directory.
+- `Pictures/MediCare` contains 12 existing photos after the update install. No photos were removed or changed.
+- Device instrumentation was not rerun in this pass because the Android instrumentation runner previously removed the installed package on this phone. Historical report artifacts show 7 instrumentation tests passed, but that result does not constitute a fresh run for this build.
 
-| Test ID | Area | Description | Expected Result | Actual Result | Status | Logcat / Evidence |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **TEST V2.4-001** | Architecture | Authoritative Single Source of Truth & Deletion Cleanup | Deleting a medicine cleans up orphaned dose events and sessions | Orphaned events cleaned up successfully | **PASS** | `MedicationRepository` |
-| **TEST V2.4-002** | Submission | Date-based immutable dose completion | Completed doses remain immutable and never revert to pending | Status preserved across reloads and restarts | **PASS** | `SessionRepository` |
-| **TEST V2.4-003** | Alarm | Stale alarm integrity check | Alarm receiver verifies pending state before ringing and cancels completed alarms | Stale alarms successfully ignored and cancelled | **PASS** | `AlarmReceiver` |
-| **TEST V2.4-004** | Navigation | Direct alarm-to-camera navigation | Tapping Verify and Take on alarm screen launches camera directly | Direct camera navigation functional | **PASS** | `AlarmAlertActivity` / `MainActivity` |
+## Migration state
 
----
+The preserved on-device migration receipt reports 1/1 medicine, 2/2 sessions, and 1 unique dose occurrence imported from 11 dose rows; duplicate scheduled occurrences were merged and three rows with duplicate IDs or missing medicine references were skipped for review. Original JSON and backup copies remain available. No reconciliation was attempted.
 
-## 3. Summary
+## Remaining verification
 
-- **Total Tests Executed**: 4
-- **Passed**: 4
-- **Failed**: 0
-- **Blocked**: 0
-- **Not Tested**: 0
-- **Pass Percentage**: 100%
-
----
-
-## 4. Remaining Issues
-- None. All architecture-level data consistency, session synchronization, deletion cleanups, and alarm integrity checks have been fully implemented and verified on the connected Vivo V2029 device.
-
----
-
-## 5. Regression Results
-- **Medicine Alarm**: WORKING
-- **Alarm-to-Camera Navigation**: WORKING
-- **Immutable Completion**: WORKING
-- **Gallery Photo Storage**: WORKING (`Pictures/MediCare/`)
-- **Inventory Deduction**: WORKING
-
----
-
-## 6. Evidence
-- Stored under `D:\MediCare\test-evidence\evidence_summary.txt`.
+Visible UI acceptance, reminder ringing/snooze/retry, CameraX capture and confirmation, inventory refresh, navigation, and strip rendering were not verified during this pass. The captured screen and prior migration receipt are retained under `test-evidence/` and app storage respectively.

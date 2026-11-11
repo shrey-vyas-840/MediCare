@@ -14,13 +14,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.medicare.app.MainActivity
 import com.medicare.app.data.models.DoseStatus
-import com.medicare.app.data.repositories.SessionRepository
-import com.medicare.app.data.storage.JsonStorage
+import com.medicare.app.data.storage.AppDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.medicare.app.ui.theme.MediCareTheme
 
 class AlarmAlertActivity : ComponentActivity() {
     companion object {
         const val EXTRA_SESSION_ID = "extra_session_id"
+        const val EXTRA_DOSE_ID = "extra_dose_id"
         const val EXTRA_MEDICATION_NAME = "extra_medication_name"
         const val EXTRA_SCHEDULED_TIME = "extra_scheduled_time"
     }
@@ -41,6 +44,7 @@ class AlarmAlertActivity : ComponentActivity() {
         }
 
         val sessionId = intent.getStringExtra(EXTRA_SESSION_ID) ?: ""
+        val doseId = intent.getStringExtra(EXTRA_DOSE_ID) ?: ""
         val medName = intent.getStringExtra(EXTRA_MEDICATION_NAME) ?: "Scheduled Medication"
         val scheduledTime = intent.getStringExtra(EXTRA_SCHEDULED_TIME) ?: "08:00"
 
@@ -83,17 +87,10 @@ class AlarmAlertActivity : ComponentActivity() {
                         Button(
                             onClick = {
                                 AlarmRingService.stop(applicationContext)
-                                val jsonStorage = JsonStorage(applicationContext)
-                                val sessionRepo = SessionRepository(jsonStorage)
-                                val events = sessionRepo.getDoseEventsForSession(sessionId)
-                                val pendingEvent = events.find { it.status == DoseStatus.SCHEDULED } ?: events.firstOrNull()
-
                                 val mainIntent = Intent(this@AlarmAlertActivity, MainActivity::class.java).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                     putExtra("extra_session_id", sessionId)
-                                    if (pendingEvent != null) {
-                                        putExtra("extra_dose_event_id", pendingEvent.eventId)
-                                    }
+                                    putExtra("extra_dose_event_id", doseId)
                                 }
                                 startActivity(mainIntent)
                                 finish()
@@ -112,8 +109,17 @@ class AlarmAlertActivity : ComponentActivity() {
                         OutlinedButton(
                             onClick = {
                                 AlarmRingService.stop(applicationContext)
-                                AlarmScheduler.scheduleSnoozeById(applicationContext, sessionId, scheduledTime, 5)
-                                finish()
+                                if (doseId.isNotBlank()) {
+                                    CoroutineScope(Dispatchers.Main).launch {
+                                        val db = AppDatabase.get(applicationContext)
+                                        val dose = db.doses().byId(doseId)
+                                        val retryAt = System.currentTimeMillis() + 5 * 60_000L
+                                        if (dose != null && db.doses().retry(doseId, retryAt) == 1) {
+                                            AlarmScheduler.scheduleDoseAlarm(applicationContext, dose, AlarmScheduler.AlarmKind.SNOOZE, retryAt)
+                                        }
+                                        finish()
+                                    }
+                                } else finish()
                             },
                             modifier = Modifier
                                 .fillMaxWidth()

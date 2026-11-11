@@ -199,7 +199,7 @@ fun CameraScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
                                 OutlinedButton(
-                                    onClick = { viewModel.retakePhoto(state.tempPath) },
+                                    onClick = { viewModel.retakePhoto(state.photoUri) },
                                     colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surface)
                                 ) {
                                     Icon(Icons.Rounded.Refresh, contentDescription = null)
@@ -208,7 +208,7 @@ fun CameraScreen(
                                 }
 
                                 Button(
-                                    onClick = { viewModel.requestConfirmation(state.bitmap, state.tempPath) }
+                                    onClick = { viewModel.requestConfirmation(state.bitmap, state.photoUri, state.fileName) }
                                 ) {
                                     Icon(Icons.Rounded.Check, contentDescription = null)
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -268,14 +268,14 @@ fun CameraScreen(
                                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                                         ) {
                                             OutlinedButton(
-                                                onClick = { viewModel.dismissConfirmation(state.bitmap, state.tempPath) },
+                                                onClick = { viewModel.dismissConfirmation(state.bitmap, state.photoUri, state.fileName) },
                                                 modifier = Modifier.weight(1f)
                                             ) {
                                                 Text("NO, NOT YET")
                                             }
                                             Button(
                                                 onClick = {
-                                                    viewModel.confirmAndSubmit(state.tempPath, state.bitmap) {}
+                                                    viewModel.confirmAndSubmit(state.photoUri, state.fileName)
                                                 },
                                                 modifier = Modifier.weight(1f),
                                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)

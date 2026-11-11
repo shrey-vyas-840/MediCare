@@ -16,7 +16,8 @@ enum class DoseStatus {
     TAKEN,
     MISSED,
     SKIPPED,
-    PENDING_VERIFICATION
+    PENDING_VERIFICATION,
+    CANCELLED
 }
 
 @Serializable
@@ -24,5 +25,6 @@ enum class SessionStatus {
     PENDING,
     COMPLETED,
     MISSED,
-    PARTIAL
+    PARTIAL,
+    CANCELLED
 }

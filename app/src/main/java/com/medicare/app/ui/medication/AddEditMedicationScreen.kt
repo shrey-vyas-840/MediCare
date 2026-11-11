@@ -22,15 +22,34 @@ fun AddEditMedicationScreen(
     viewModel: MedicationViewModel,
     onNavigateBack: () -> Unit
 ) {
-    val existingMed = medicationId?.let { viewModel.getMedicationById(it) }
+    val medications by viewModel.medications.collectAsState()
+    val existingMed = medications.firstOrNull { it.id == medicationId }
+    var initialized by remember(medicationId) { mutableStateOf(medicationId == null) }
+    var name by remember(medicationId) { mutableStateOf("") }
+    var dosage by remember(medicationId) { mutableStateOf("1.0") }
+    var unit by remember(medicationId) { mutableStateOf("mg") }
+    var timeInput by remember(medicationId) { mutableStateOf("") }
+    var frequency by remember(medicationId) { mutableStateOf(Frequency.DAILY) }
+    var initialQuantity by remember(medicationId) { mutableStateOf("14") }
+    var currentInventory by remember(medicationId) { mutableStateOf("14") }
+    var stripRows by remember(medicationId) { mutableStateOf("2") }
+    var stripColumns by remember(medicationId) { mutableStateOf("7") }
+    var validationError by remember(medicationId) { mutableStateOf<String?>(null) }
 
-    var name by remember { mutableStateOf(existingMed?.name ?: "") }
-    var dosage by remember { mutableStateOf(existingMed?.dosage?.toString() ?: "1.0") }
-    var unit by remember { mutableStateOf(existingMed?.unit ?: "mg") }
-    var timeInput by remember { mutableStateOf(existingMed?.times?.joinToString(", ") ?: "") }
-    var frequency by remember { mutableStateOf(existingMed?.frequency ?: Frequency.DAILY) }
-    var initialQuantity by remember { mutableStateOf(existingMed?.initialQuantity?.toString() ?: "14") }
-    var currentInventory by remember { mutableStateOf(existingMed?.currentInventory?.toString() ?: "14") }
+    LaunchedEffect(existingMed) {
+        if (!initialized && existingMed != null) {
+            name = existingMed.name
+            dosage = existingMed.dosage.toString()
+            unit = existingMed.unit
+            timeInput = existingMed.times.joinToString(", ")
+            frequency = existingMed.frequency
+            initialQuantity = existingMed.initialQuantity.toString()
+            currentInventory = existingMed.currentInventory.toString()
+            stripRows = existingMed.stripRows.toString().let { if (it == "0") "2" else it }
+            stripColumns = existingMed.stripColumns.toString().let { if (it == "0") "7" else it }
+            initialized = true
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -120,13 +139,42 @@ fun AddEditMedicationScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = stripRows,
+                    onValueChange = { stripRows = it.filter(Char::isDigit) },
+                    label = { Text("Strip rows") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = stripColumns,
+                    onValueChange = { stripColumns = it.filter(Char::isDigit) },
+                    label = { Text("Strip columns") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = {
                     val timesList = timeInput.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                    val fullQty = initialQuantity.toIntOrNull() ?: 14
-                    val leftQty = currentInventory.toIntOrNull() ?: fullQty
+                    val fullQty = initialQuantity.toIntOrNull()
+                    val leftQty = currentInventory.toIntOrNull()
+                    val rows = stripRows.toIntOrNull()
+                    val columns = stripColumns.toIntOrNull()
+                    val capacity = if (rows != null && columns != null) rows * columns else 0
+                    validationError = when {
+                        name.isBlank() -> "Enter the medicine name."
+                        timeInput.split(",").any { it.isNotBlank() && !it.trim().matches(Regex("([01]\\d|2[0-3]):[0-5]\\d")) } -> "Enter each reminder time as HH:mm."
+                        rows !in 1..20 || columns !in 1..20 -> "Strip rows and columns must each be between 1 and 20."
+                        fullQty == null || fullQty < 1 || fullQty > capacity -> "Full strip quantity must fit within $capacity positions."
+                        leftQty == null || leftQty !in 0..fullQty -> "Tablets left must be between zero and the full strip quantity."
+                        else -> null
+                    }
+                    if (validationError != null) return@Button
                     val medication = Medication(
                         id = existingMed?.id ?: UUID.randomUUID().toString(),
                         name = name.ifBlank { "Unknown Medicine" },
@@ -135,10 +183,10 @@ fun AddEditMedicationScreen(
                         times = timesList.ifEmpty { listOf("08:00") },
                         frequency = frequency,
                         active = existingMed?.active ?: true,
-                        stripRows = 2,
-                        stripColumns = 7,
-                        initialQuantity = fullQty,
-                        currentInventory = leftQty
+                        stripRows = rows!!,
+                        stripColumns = columns!!,
+                        initialQuantity = fullQty!!,
+                        currentInventory = leftQty!!
                     )
                     viewModel.saveMedication(medication)
                     onNavigateBack()
@@ -147,6 +195,7 @@ fun AddEditMedicationScreen(
             ) {
                 Text("Save Medicine")
             }
+            validationError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
 }

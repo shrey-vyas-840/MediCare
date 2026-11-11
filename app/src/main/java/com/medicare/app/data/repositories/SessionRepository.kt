@@ -5,128 +5,62 @@ import com.medicare.app.data.models.DoseStatus
 import com.medicare.app.data.models.Medication
 import com.medicare.app.data.models.MedicineSession
 import com.medicare.app.data.models.SessionStatus
-import com.medicare.app.data.storage.JsonStorage
+import androidx.room.withTransaction
+import com.medicare.app.data.storage.AppDatabase
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 
-class SessionRepository(private val jsonStorage: JsonStorage) {
-    private val sessionsFileName = "medicine_sessions.json"
-    private val eventsFileName = "dose_events.json"
-
-    private val _sessionsFlow = MutableStateFlow<List<MedicineSession>>(emptyList())
-    val sessionsFlow: Flow<List<MedicineSession>> = _sessionsFlow.asStateFlow()
-
-    private val _eventsFlow = MutableStateFlow<List<DoseEvent>>(emptyList())
-    val eventsFlow: Flow<List<DoseEvent>> = _eventsFlow.asStateFlow()
-
-    init {
-        loadData()
-    }
-
-    private fun loadData() {
-        _sessionsFlow.value = jsonStorage.load<List<MedicineSession>>(sessionsFileName, emptyList(), 1)
-        _eventsFlow.value = jsonStorage.load<List<DoseEvent>>(eventsFileName, emptyList(), 1)
-    }
-
-    fun getSessionsForDate(date: String): List<MedicineSession> {
-        return _sessionsFlow.value.filter { it.scheduledDate == date }
-    }
-
-    fun observeSessionsForDate(date: String): Flow<List<MedicineSession>> {
-        return sessionsFlow.map { list -> list.filter { it.scheduledDate == date } }
-    }
-
-    fun getDoseEventsForSession(sessionId: String): List<DoseEvent> {
-        return _eventsFlow.value.filter { it.sessionId == sessionId }
-    }
-
-    fun getDoseEvent(eventId: String): DoseEvent? {
-        return _eventsFlow.value.find { it.eventId == eventId }
-    }
+class SessionRepository(private val db: AppDatabase) {
+    fun observeSessionsForDate(date: String): Flow<List<MedicineSession>> = db.sessions().observeDate(date)
+    suspend fun getSessionsForDate(date: String): List<MedicineSession> = db.sessions().forDate(date)
+    fun observeDoseEventsForSession(sessionId: String): Flow<List<DoseEvent>> = db.doses().observeSession(sessionId)
+    suspend fun getDoseEventsForSession(sessionId: String): List<DoseEvent> = db.doses().forSession(sessionId)
+    suspend fun getDoseEvent(eventId: String): DoseEvent? = db.doses().byId(eventId)
 
     suspend fun generateSessionsForDate(date: String, medications: List<Medication>) {
-        val timeToMeds = mutableMapOf<String, MutableList<Medication>>()
+        val timeToMeds = sortedMapOf<String, MutableList<Medication>>()
         for (med in medications) {
             if (!med.active) continue
-            for (time in med.times) {
+            for (time in med.times.distinct()) {
                 timeToMeds.getOrPut(time) { mutableListOf() }.add(med)
             }
         }
-
-        val existingSessions = _sessionsFlow.value.toMutableList()
-        val existingEvents = _eventsFlow.value.toMutableList()
-
-        val affectedSessionIds = existingSessions.filter { it.scheduledDate == date }.map { it.sessionId }.toSet()
-        val existingEventsForDate = existingEvents.filter { it.sessionId in affectedSessionIds }
-        val existingEventMap = existingEventsForDate.associateBy { "${it.medicineId}_${it.scheduledTime}" }
-
-        existingSessions.removeIf { it.scheduledDate == date }
-
-        val newSessions = mutableListOf<MedicineSession>()
-        val newEvents = mutableListOf<DoseEvent>()
-
-        for ((time, meds) in timeToMeds.entries.sortedBy { it.key }) {
-            val session = MedicineSession(
-                scheduledDate = date,
-                scheduledTime = time,
-                doseEventIds = emptyList(),
-                status = SessionStatus.PENDING,
-                submittedCount = 0,
-                totalMedicineCount = meds.size
-            )
-
-            val eventIds = mutableListOf<String>()
-            for (med in meds) {
-                val key = "${med.id}_$time"
-                val existingEvent = existingEventMap[key]
-                val event = if (existingEvent != null) {
-                    existingEvent // Preserve existing submission status and photoPath!
-                } else {
-                    DoseEvent(
-                        sessionId = session.sessionId,
-                        medicineId = med.id,
-                        scheduledDate = date,
-                        scheduledTime = time,
-                        status = DoseStatus.SCHEDULED
-                    )
+        db.withTransaction {
+            val scheduledOccurrences = timeToMeds.flatMap { (time, meds) -> meds.map { it.id to time } }.toSet()
+            db.doses().forDate(date).forEach { existing ->
+                if ((existing.medicineId to existing.scheduledTime) !in scheduledOccurrences &&
+                    existing.status in setOf(DoseStatus.SCHEDULED, DoseStatus.PENDING_VERIFICATION)) {
+                    db.doses().cancelPending(existing.eventId)
                 }
-                newEvents.add(event)
-                eventIds.add(event.eventId)
             }
-
-            val submittedCount = eventIds.count { id ->
-                val ev = newEvents.find { it.eventId == id }
-                ev?.status == DoseStatus.TAKEN || ev?.status == DoseStatus.SKIPPED
+            for ((time, meds) in timeToMeds) {
+                val session = db.sessions().byOccurrence(date, time) ?: MedicineSession(
+                    scheduledDate = date, scheduledTime = time, doseEventIds = emptyList()
+                ).also { db.sessions().upsert(it) }
+                val eventIds = db.doses().forSession(session.sessionId).map { it.eventId }.toMutableList()
+                for (med in meds) {
+                    val existing = db.doses().occurrence(med.id, date, time)
+                    val event = when {
+                        existing == null -> DoseEvent(sessionId = session.sessionId, medicineId = med.id, scheduledDate = date, scheduledTime = time).also { db.doses().upsert(it) }
+                        existing.status == DoseStatus.CANCELLED -> existing.copy(sessionId = session.sessionId, status = DoseStatus.SCHEDULED, nextReminderAt = null).also { db.doses().upsert(it) }
+                        existing.sessionId != session.sessionId -> existing.copy(sessionId = session.sessionId).also { db.doses().upsert(it) }
+                        else -> existing
+                    }
+                    if (event.eventId !in eventIds) eventIds += event.eventId
+                }
+                val events = db.doses().forSession(session.sessionId)
+                val activeEvents = events.filter { it.status != DoseStatus.CANCELLED }
+                val completed = activeEvents.count { it.status == DoseStatus.TAKEN }
+                val status = when {
+                    activeEvents.isEmpty() -> SessionStatus.CANCELLED
+                    completed == activeEvents.size -> SessionStatus.COMPLETED
+                    completed > 0 -> SessionStatus.PARTIAL
+                    else -> SessionStatus.PENDING
+                }
+                db.sessions().upsert(session.copy(doseEventIds = eventIds, status = status, submittedCount = completed, totalMedicineCount = activeEvents.size))
             }
-            val allTaken = eventIds.all { id ->
-                val ev = newEvents.find { it.eventId == id }
-                ev?.status == DoseStatus.TAKEN || ev?.status == DoseStatus.SKIPPED
-            }
-
-            val sessionStatus = when {
-                allTaken -> SessionStatus.COMPLETED
-                submittedCount > 0 -> SessionStatus.PARTIAL
-                else -> SessionStatus.PENDING
-            }
-
-            val finalSession = session.copy(
-                doseEventIds = eventIds,
-                status = sessionStatus,
-                submittedCount = submittedCount
-            )
-            newSessions.add(finalSession)
+            db.sessions().forDate(date).forEach { refreshSession(it.sessionId) }
         }
-
-        val updatedSessions = existingSessions + newSessions
-        val filteredEvents = existingEvents.filter { it.sessionId !in affectedSessionIds } + newEvents
-
-        _sessionsFlow.value = updatedSessions
-        _eventsFlow.value = filteredEvents
-
-        jsonStorage.save(sessionsFileName, updatedSessions)
-        jsonStorage.save(eventsFileName, filteredEvents)
     }
 
     suspend fun updateDoseEventStatus(
@@ -136,56 +70,60 @@ class SessionRepository(private val jsonStorage: JsonStorage) {
         quantityRecorded: Int? = null,
         userAcknowledged: Boolean = true
     ) {
-        val currentTime = System.currentTimeMillis()
-        val events = _eventsFlow.value.map { event ->
-            if (event.eventId == eventId) {
-                event.copy(
-                    status = status,
-                    captureTime = if (photoPath != null && event.captureTime == null) currentTime else event.captureTime,
-                    submissionTime = if (status == DoseStatus.TAKEN || status == DoseStatus.SKIPPED) currentTime else event.submissionTime,
-                    photoPath = photoPath ?: event.photoPath,
-                    quantityRecorded = quantityRecorded ?: event.quantityRecorded,
-                    userAcknowledged = userAcknowledged
-                )
-            } else {
-                event
-            }
+        val event = db.doses().byId(eventId) ?: return
+        if (event.status == DoseStatus.TAKEN || event.status == DoseStatus.CANCELLED) return
+        if (status == DoseStatus.TAKEN) {
+            if (!event.photoPath.isNullOrBlank()) completeDose(eventId, event.photoPath, event.captureTime ?: System.currentTimeMillis(), quantityRecorded ?: 1)
+            return
         }
-        _eventsFlow.value = events
-        jsonStorage.save(eventsFileName, events)
-
-        val updatedEvent = events.find { it.eventId == eventId }
-        if (updatedEvent != null) {
-            updateSessionStatus(updatedEvent.sessionId, events)
+        db.withTransaction {
+            db.doses().setStatus(eventId, status, quantityRecorded, userAcknowledged)
+            refreshSession(event.sessionId)
         }
     }
 
-    private suspend fun updateSessionStatus(sessionId: String, allEvents: List<DoseEvent>) {
-        val sessionEvents = allEvents.filter { it.sessionId == sessionId }
-        if (sessionEvents.isEmpty()) return
+    suspend fun saveCapturedPhoto(eventId: String, uri: String, capturedAt: Long): Boolean = db.doses().savePhoto(eventId, uri, capturedAt) == 1
 
-        val submittedCount = sessionEvents.count { it.status == DoseStatus.TAKEN || it.status == DoseStatus.SKIPPED || it.status == DoseStatus.MISSED }
-        val allTakenOrSkipped = sessionEvents.all { it.status == DoseStatus.TAKEN || it.status == DoseStatus.SKIPPED }
+    suspend fun completeDose(eventId: String, uri: String, capturedAt: Long, quantity: Int): Boolean = db.withTransaction {
+        require(quantity > 0)
+        val event = db.doses().byId(eventId) ?: return@withTransaction false
+        if (event.status == DoseStatus.TAKEN || event.status == DoseStatus.CANCELLED) return@withTransaction false
+        if (event.photoPath != uri || event.captureTime != capturedAt) return@withTransaction false
+        val medicine = db.medications().byId(event.medicineId) ?: return@withTransaction false
+        if (db.doses().complete(eventId, System.currentTimeMillis(), quantity) != 1) return@withTransaction false
+        db.medications().decrement(medicine.id, quantity)
+        refreshSession(event.sessionId)
+        true
+    }
 
-        val sessionStatus = when {
-            allTakenOrSkipped -> SessionStatus.COMPLETED
-            submittedCount > 0 && submittedCount < sessionEvents.size -> SessionStatus.PARTIAL
-            submittedCount == sessionEvents.size -> SessionStatus.COMPLETED
+    suspend fun scheduleRetry(eventId: String, retryAt: Long): Boolean {
+        val event = db.doses().byId(eventId) ?: return false
+        return db.doses().retry(eventId, retryAt) == 1
+    }
+
+    suspend fun cancelDose(eventId: String): Boolean {
+        val event = db.doses().byId(eventId) ?: return false
+        return db.withTransaction {
+            val changed = db.doses().cancelPending(eventId) == 1
+            if (changed) refreshSession(event.sessionId)
+            changed
+        }
+    }
+
+    suspend fun nextOutstanding(sessionId: String): DoseEvent? = db.doses().forSession(sessionId)
+        .firstOrNull { it.status == DoseStatus.SCHEDULED || it.status == DoseStatus.PENDING_VERIFICATION }
+
+    private suspend fun refreshSession(sessionId: String) {
+        val events = db.doses().forSession(sessionId)
+        if (events.isEmpty()) return
+        val active = events.filter { it.status != DoseStatus.CANCELLED }
+        val done = active.count { it.status == DoseStatus.TAKEN }
+        val status = when {
+            active.isEmpty() -> SessionStatus.CANCELLED
+            done == active.size -> SessionStatus.COMPLETED
+            done > 0 -> SessionStatus.PARTIAL
             else -> SessionStatus.PENDING
         }
-
-        val sessions = _sessionsFlow.value.map { session ->
-            if (session.sessionId == sessionId) {
-                session.copy(
-                    status = sessionStatus,
-                    submittedCount = sessionEvents.count { it.status == DoseStatus.TAKEN || it.status == DoseStatus.SKIPPED }
-                )
-            } else {
-                session
-            }
-        }
-
-        _sessionsFlow.value = sessions
-        jsonStorage.save(sessionsFileName, sessions)
+        db.sessions().updateSummary(sessionId, status, done, events.size)
     }
 }

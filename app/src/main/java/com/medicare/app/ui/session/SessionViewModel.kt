@@ -8,15 +8,18 @@ import com.medicare.app.alarms.AlarmScheduler
 import com.medicare.app.data.models.DoseEvent
 import com.medicare.app.data.models.DoseStatus
 import com.medicare.app.data.models.MedicineSession
+import com.medicare.app.data.models.Medication
 import com.medicare.app.data.repositories.MedicationRepository
 import com.medicare.app.data.repositories.SessionRepository
-import com.medicare.app.data.storage.JsonStorage
+import com.medicare.app.data.storage.AppDatabase
 import com.medicare.app.engine.SessionGroupingEngine
 import com.medicare.app.engine.TimeSlot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -24,20 +27,25 @@ import java.util.Date
 import java.util.Locale
 
 class SessionViewModel(application: Application) : AndroidViewModel(application) {
-    private val jsonStorage = JsonStorage(application)
-    private val sessionRepository = SessionRepository(jsonStorage)
-    private val medicationRepository = MedicationRepository(jsonStorage)
+    private val database = AppDatabase.get(application)
+    private val sessionRepository = SessionRepository(database)
+    private val medicationRepository = MedicationRepository(database)
     private val groupingEngine = SessionGroupingEngine()
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val _selectedDate = MutableStateFlow(dateFormat.format(Date()))
     val selectedDate: StateFlow<String> = _selectedDate.asStateFlow()
 
-    val sessions: StateFlow<List<MedicineSession>> = sessionRepository.sessionsFlow
+    val medications: StateFlow<List<Medication>> = medicationRepository.medicationsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _groupedSessions = MutableStateFlow<Map<TimeSlot, List<MedicineSession>>>(emptyMap())
-    val groupedSessions: StateFlow<Map<TimeSlot, List<MedicineSession>>> = _groupedSessions.asStateFlow()
+    val sessions: StateFlow<List<MedicineSession>> = selectedDate
+        .flatMapLatest { sessionRepository.observeSessionsForDate(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val groupedSessions: StateFlow<Map<TimeSlot, List<MedicineSession>>> = sessions
+        .map(groupingEngine::groupSessionsByTimeSlot)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     init {
         refreshSessions(_selectedDate.value)
@@ -52,14 +60,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val meds = medicationRepository.getMedications()
             sessionRepository.generateSessionsForDate(date, meds)
-            val dateSessions = sessionRepository.getSessionsForDate(date)
-            _groupedSessions.value = groupingEngine.groupSessionsByTimeSlot(dateSessions)
         }
     }
 
-    fun getDoseEvents(sessionId: String): List<DoseEvent> {
-        return sessionRepository.getDoseEventsForSession(sessionId)
-    }
+    fun observeDoseEvents(sessionId: String) = sessionRepository.observeDoseEventsForSession(sessionId)
 
     fun updateDoseStatus(eventId: String, status: DoseStatus, quantityRecorded: Int? = null) {
         viewModelScope.launch {
@@ -69,6 +73,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun snoozeSession(context: Context, session: MedicineSession) {
-        AlarmScheduler.scheduleSnooze(context, session, 5)
+        viewModelScope.launch {
+            sessionRepository.nextOutstanding(session.sessionId)?.let { event ->
+                AlarmScheduler.scheduleDoseAlarm(context, event, AlarmScheduler.AlarmKind.SNOOZE, System.currentTimeMillis() + 5 * 60_000L)
+            }
+        }
     }
 }
